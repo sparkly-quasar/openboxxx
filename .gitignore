@@ -1,0 +1,27 @@
+# Build
+build/
+cmake-build-*/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# rekordbox test artifacts / real USB dumps (may contain copyrighted audio)
+/test-usb/
+*.pdb
+*.DAT
+*.EXT
+*.2EX
+!docs/**
+
+# Python venv (if using pyrekordbox as a reference/tooling sidecar)
+.venv/
+__pycache__/
