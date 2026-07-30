@@ -66,10 +66,15 @@ AlphaTheta ships new firmware/format versions on their schedule. A 3000X firmwar
 tighten validation and break an edge case. Mitigation: the test matrix + verifier + a fast-moving
 open community so breaks get caught and patched in days, not never.
 
+## Detailed design
+
+The implementation architecture (standalone writer library, MVP scope, cross-platform rules,
+verification ladder, in-app bug reporting) lives in [export-design.md](export-design.md).
+
 ## Open research tasks
 
 - [x] Survey the state of the Mixxx export effort → see [mixxx-export-status.md](mixxx-export-status.md).
-- [ ] Confirm in-repo: the Engine DJ exporter interface (#12126) + `lib/rekordbox-metadata/`.
-- [ ] Deep-read pyrekordbox's ANLZ/PDB writers to map the byte layout.
-- [ ] Prototype a standalone PDB/ANLZ writer + round-trip verifier (spike, before touching Mixxx).
-- [ ] Define the exact Mixxx→rekordbox cue/beatgrid mapping.
+- [x] Confirm in-repo: the Engine DJ exporter interface (#12126) + `lib/rekordbox-metadata/` → [research-findings.md](research-findings.md) §A.
+- [x] Deep-read pyrekordbox's ANLZ/PDB writers to map the byte layout → [research-findings.md](research-findings.md) §B.
+- [ ] Prototype a standalone PDB/ANLZ writer + round-trip verifier (spike, before touching Mixxx) → Phase 0, see [export-design.md](export-design.md).
+- [x] Define the exact Mixxx→rekordbox cue/beatgrid mapping → mapping inverts importer, [research-findings.md](research-findings.md) §A.4.
