@@ -27,8 +27,26 @@ tests/     dependency-free unit tests
 cmake -S . -B build
 cmake --build build
 ctest --test-dir build --output-on-failure
-./build/openboxxx_export_cli          # smoke test on a built-in demo model
+./build/openboxxx_export_cli               # smoke test on a built-in demo model
+./build/openboxxx_export_cli --out /tmp/u  # also write the USB image to disk
 ```
+
+### Tier-2 ANLZ oracle (optional)
+
+Proves our ANLZ output is valid rekordbox format by round-tripping it through an
+independent parser (`pyrekordbox`, MIT):
+
+```sh
+pip install -r tools/requirements.txt
+# wire it into ctest by pointing at that interpreter:
+cmake -S . -B build -DOPENBOXXX_ORACLE_PYTHON=$(which python3)
+ctest --test-dir build            # now runs openboxxx_export_tests + anlz_oracle
+# or run it directly against any .DAT, optionally comparing to a real stick:
+python3 tools/verify_anlz.py OURS.DAT --ref /path/to/real/ANLZ0000.DAT
+```
+
+The oracle test is registered only if `pyrekordbox` imports, so environments
+without it simply skip it.
 
 ## Status (Phase 0, in progress)
 
@@ -37,11 +55,12 @@ ctest --test-dir build --output-on-failure
 | `byteio` explicit LE/BE | ✅ implemented + tested |
 | `device_sql_string` encoder | ✅ implemented + tested |
 | `mapping` colour/rating | ✅ implemented + tested |
-| ANLZ container + PPTH + PQTZ | ✅ implemented + framing-tested |
-| ANLZ PCOB / PCPT cue entries | ⚠️ best-effort layout, needs reference-stick validation |
+| ANLZ container + PPTH + PQTZ | ✅ implemented; validated via tier-2 oracle |
+| ANLZ PCOB / PCPT cue entries | ✅ layout validated via tier-2 oracle (ordering TODO) |
 | PDB page allocator (`PdbPage`) | ⚠️ framing implemented; row-group offsets need validation |
 | PDB table/row serializers (`buildExportPdb`) | ⛔ TODO — the big remaining chunk |
-| `verify` round-trip (tier 1) | ⛔ TODO — needs Kaitai `rekordbox_pdb`/`_anlz` parsers |
+| `verify` round-trip (tier 1, C++) | ⛔ TODO — needs Kaitai `rekordbox_pdb`/`_anlz` parsers |
 
-The `⚠️`/`⛔` items are exactly what verification tiers 1–2 (round-trip parse +
-diff against a real rekordbox stick) will pin down; see the design doc.
+Next: the PDB row serializers (the `⛔`), validated the same way once a PDB
+parser is wired for read-back. ANLZ Phase-2 sections a real stick showed we still
+owe: `vbr`, `wf_preview`, `wf_tiny_preview` (all cosmetic/optional).

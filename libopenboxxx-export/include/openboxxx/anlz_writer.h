@@ -24,8 +24,9 @@ std::vector<uint8_t> buildAnlzDat(const Track& track);
 void putPpth(ByteBuffer& out, const std::string& usb_path);          // audio path (UTF-16BE)
 void putPqtz(ByteBuffer& out, const std::vector<Beat>& beatgrid);    // beat grid
 // PCOB cue list. `hot` selects the hot-cue list (true) vs memory-cue list (false).
-// NOTE: exact PCPT entry layout is best-effort pending validation against a real
-// rekordbox stick (verification tier 2) -- see docs/export-design.md open questions.
+// PCPT entry layout validated via the tier-2 oracle (tools/verify_anlz.py:
+// our output round-trips through pyrekordbox). order_first/order_last are still
+// placeholders (0xFFFF) pending multi-cue ordering refinement.
 void putPcob(ByteBuffer& out, const std::vector<Cue>& cues, bool hot);
 
 }  // namespace openboxxx

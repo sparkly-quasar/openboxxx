@@ -77,18 +77,22 @@ void putPcob(ByteBuffer& out, const std::vector<Cue>& cues, bool hot) {
         if (is_hot != hot) continue;
         const bool is_loop = c.loop_end_ms.has_value();
 
+        // PCPT entry layout confirmed against pyrekordbox structs (verification
+        // tier 2). openTag writes fourcc + len_header(28); closeTag backfills the
+        // second u32 to the whole entry size (== len_entry, 56).
         const std::size_t e_start = out.size();
         const std::size_t e_len_off = openTag(out, "PCPT", 0x1C);
         out.putU32BE(is_hot ? uint32_t(c.hot_index + 1) : 0u);  // hot_cue #
-        out.putU32BE(is_loop ? 4u : 1u);                        // status
-        out.putU32BE(0x10000);
-        out.putU16BE(0);                                        // order_first (TODO)
-        out.putU16BE(0);                                        // order_last (TODO)
-        out.putU8(is_loop ? 2 : 1);                             // type: 1=cue,2=loop
-        out.putZeros(3);
+        out.putU32BE(4);                                        // status = enabled
+        out.putU32BE(0x10000);                                  // u1 const
+        out.putU16BE(0xFFFF);                                   // order_first (refine later)
+        out.putU16BE(0xFFFF);                                   // order_last
+        out.putU8(is_loop ? 2 : 1);                             // type: 1=cue, 2=loop
+        out.putU8(0);                                           // padding(1)
+        out.putU16BE(1000);                                     // u2 const (0x3E8)
         out.putU32BE(c.time_ms);
-        out.putU32BE(is_loop ? c.loop_end_ms.value() : 0xFFFFFFFFu);
-        out.putZeros(16);
+        out.putU32BE(is_loop ? c.loop_end_ms.value() : 0xFFFFFFFFu);  // loop_time (-1)
+        out.putZeros(16);                                      // padding(16)
         closeTag(out, e_len_off, e_start);
     }
     closeTag(out, len_tag_off, start);
