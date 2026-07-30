@@ -1,0 +1,3 @@
+# Dev/CI dependencies for the verification tooling (not needed to build the lib).
+# Tier-2 ANLZ oracle: an independent real-rekordbox-format parser (MIT).
+pyrekordbox
