@@ -25,7 +25,13 @@ For the export use case, **we never touch the encrypted app database.**
 2. **Import path:** read `rekordbox.xml` (official) and *unencrypted* USB exports. If a user wants
    their existing rekordbox 6/7 library in, ask *them* to export `rekordbox.xml` from their own
    rekordbox — the sanctioned path — rather than us decrypting their `master.db`.
-3. **Export path:** write unencrypted PDB/ANLZ USBs. Add OneLibrary/Device Library Plus later.
+3. **Export path:** write unencrypted PDB/ANLZ USBs.
+4. **OneLibrary is NOT the safe "later" target we first assumed.** Its `exportLibrary.db` is
+   **SQLCipher-encrypted** (256-bit AES; key recovered via base85 → XOR `657f48f84c437cc1` → zlib).
+   The key is fixed/non-license, but it's still an *extracted encryption key* — so writing
+   OneLibrary = circumventing SQLCipher = the §1201 risk we're avoiding. Pursue OneLibrary **only
+   via an official AlphaTheta spec/partnership**, never with the extracted key. Details in
+   [mixxx-export-status.md](mixxx-export-status.md).
 
 ## License compatibility (a real trap)
 
