@@ -66,10 +66,12 @@ without them simply skip it.
 | ANLZ PCOB / PCPT cue entries | ✅ layout validated via `anlz_oracle` (cue ordering TODO) |
 | PDB page allocator (`PdbPage`) | ✅ framing validated via `pdb_roundtrip` |
 | PDB tracks + lookups + playlists (`buildExportPdb`) | ✅ round-trips via `pdb_roundtrip` |
+| PDB full 20-table set + colours palette | ✅ emitted; round-trips (colour_id resolves) |
 | `verify` round-trip (native C++) | ⛔ TODO — port the read-back into the lib for in-app use |
 
-The MVP export (tracks, artists/albums/genres/keys, playlists; ANLZ beatgrid +
-hot/memory cues) now round-trips through independent parsers. Remaining before a
-hardware test: emit the full standard table set (incl. empty tables), refine the
-observed track_row constants / `index_shift`, and add colours/artwork. ANLZ
-Phase-2 (cosmetic): `vbr`, `wf_preview`, `wf_tiny_preview`.
+The MVP export (all 20 standard tables incl. the 8-colour palette; tracks with
+colour_id, artists/albums/genres/keys; playlists; ANLZ beatgrid + hot/memory
+cues) now round-trips through independent parsers. Remaining before a hardware
+test: refine the observed track_row constants / `index_shift` across rekordbox
+versions, and add artwork. ANLZ Phase-2 (cosmetic): `vbr`, `wf_preview`,
+`wf_tiny_preview`.

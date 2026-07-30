@@ -63,7 +63,10 @@ def main():
 
     chk = Checker()
     chk.check(db.len_page == 4096, "len_page == 4096")
-    chk.check(db.num_tables > 0, "has tables")
+    chk.check(db.num_tables == 20, "emits the full 20-table standard set")
+
+    colors = list(rows(db, "PageType.colors"))
+    chk.check(len(colors) == 8, "colours table has the 8 palette entries")
 
     tracks = list(rows(db, "PageType.tracks"))
     chk.check(len(tracks) > 0, "tracks table has rows")
