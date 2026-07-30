@@ -37,6 +37,7 @@ matrix.
 
 - [docs/legal.md](docs/legal.md) — how we stay within legal bounds (the important one)
 - [docs/architecture.md](docs/architecture.md) — the export module design & reuse map
+- [docs/mixxx-export-status.md](docs/mixxx-export-status.md) — state of Mixxx's export effort (what exists vs. what's left)
 
 ## License
 
