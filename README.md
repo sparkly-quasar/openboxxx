@@ -29,14 +29,32 @@ hard fork. See [docs/architecture.md](docs/architecture.md).
 
 ## Status
 
-Early scoping. No code yet — this repo currently holds the project vision, the legal position,
-and the architecture plan. Next up: architecture spec for the export module + a hardware test
-matrix.
+**Phase 0 (standalone writer) — core proven.** The byte-level CDJ USB writer exists and is
+validated: [`libopenboxxx-export/`](libopenboxxx-export/) turns a plain track/playlist model into
+a real `export.pdb` (all 20 standard tables + the 8-colour palette) plus per-track ANLZ analysis
+files (beat grids + hot/memory cues). Every output is checked against **two independent
+real-rekordbox-format parsers** (pyrekordbox for ANLZ, a crate-digger-spec Kaitai parser for PDB),
+so we can prove the bytes are right, not just hope.
+
+**Not yet done — Phase 1 (Mixxx integration).** There is no in-Mixxx export button yet. Mixxx has
+no plugin API for this, so integration means adding a `RekordboxExportJob` (mirroring the existing
+Engine DJ exporter) compiled into Mixxx, plus an adapter that fills the export model from Mixxx's
+live library — to be upstreamed, not shipped as a loadable plugin. See the roadmap in
+[docs/export-design.md](docs/export-design.md).
+
+**Not yet done — hardware validation.** The output round-trips through parsers but has not been
+tested on a physical CDJ/XDJ (verification-ladder tier 4). That is the real proof and comes after
+a `--write-to-USB` path + a borrowed player.
+
+See [`libopenboxxx-export/README.md`](libopenboxxx-export/README.md) for the component-by-component
+status table and how to build + run the verification tests.
 
 ## Docs
 
 - [docs/legal.md](docs/legal.md) — how we stay within legal bounds (the important one)
-- [docs/architecture.md](docs/architecture.md) — the export module design & reuse map
+- [docs/architecture.md](docs/architecture.md) — high-level framing & reuse map
+- [docs/export-design.md](docs/export-design.md) — implementation design: phases, MVP scope, verification ladder, in-app bug reporting
+- [docs/research-findings.md](docs/research-findings.md) — source-cited research: Mixxx internals + PDB/ANLZ byte formats
 - [docs/mixxx-export-status.md](docs/mixxx-export-status.md) — state of Mixxx's export effort (what exists vs. what's left)
 
 ## License
