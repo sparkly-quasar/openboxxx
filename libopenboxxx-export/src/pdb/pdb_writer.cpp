@@ -7,6 +7,7 @@
 
 #include "openboxxx/byteio.h"
 #include "openboxxx/device_sql_string.h"
+#include "openboxxx/mapping.h"
 
 namespace openboxxx {
 namespace {
@@ -29,7 +30,7 @@ std::string baseName(const std::string& path) {
 // --- row serializers (return the raw row bytes; strings via device_sql_string) ---
 
 std::vector<uint8_t> buildTrackRow(const Track& t, uint32_t artist_id, uint32_t album_id,
-                                   uint32_t genre_id, uint32_t key_id) {
+                                   uint32_t genre_id, uint32_t key_id, uint8_t color_id) {
     ByteBuffer r;
     r.putU16LE(0x24);                 // subtype (0x04 bit -> 16-bit string offsets)
     r.putU16LE(0);                    // index_shift (rekordbox-internal; neutral 0)
@@ -59,7 +60,7 @@ std::vector<uint8_t> buildTrackRow(const Track& t, uint32_t artist_id, uint32_t 
     r.putU16LE(16);                   // sample_depth
     r.putU16LE(uint16_t(t.duration_s));
     r.putU16LE(kTrackU26);
-    r.putU8(0);                       // color_id
+    r.putU8(color_id);
     r.putU8(uint8_t(t.rating));
     r.putU16LE(kTrackU29);
     r.putU16LE(kTrackU30);
@@ -118,6 +119,15 @@ std::vector<uint8_t> buildKeyRow(uint32_t id, const std::string& name) {
     ByteBuffer r;
     r.putU32LE(id);
     r.putU32LE(id);                   // id2
+    putDeviceSqlString(r, name);
+    return r.bytes();
+}
+
+std::vector<uint8_t> buildColorRow(uint16_t id, const std::string& name) {
+    ByteBuffer r;
+    r.putZeros(5);                    // unknown prefix (rekordbox-internal)
+    r.putU16LE(id);
+    r.putU8(0);                       // unknown
     putDeviceSqlString(r, name);
     return r.bytes();
 }
@@ -231,8 +241,16 @@ std::vector<uint8_t> buildExportPdb(const ExportModel& model) {
         const uint32_t alb = intern(album_ids, t.album);
         const uint32_t gid = intern(genre_ids, t.genre);
         const uint32_t kid = intern(key_ids, t.key);
-        track_rows.push_back(buildTrackRow(t, aid, alb, gid, kid));
+        const uint8_t cid = t.color ? rekordboxColorId(*t.color) : 0;
+        track_rows.push_back(buildTrackRow(t, aid, alb, gid, kid, cid));
     }
+
+    // Colours: the fixed 8-entry rekordbox palette (ids 1..8), always emitted so
+    // any track colour_id resolves. Names match a real export.
+    static const char* const kColorNames[8] = {
+        "Pink", "Red", "Orange", "Yellow", "Green", "Aqua", "Blue", "Purple"};
+    std::vector<std::vector<uint8_t>> color_rows;
+    for (uint16_t i = 0; i < 8; ++i) color_rows.push_back(buildColorRow(i + 1, kColorNames[i]));
 
     auto lookupRows = [](const std::map<std::string, uint32_t>& m,
                          std::vector<uint8_t> (*fn)(uint32_t, const std::string&)) {
@@ -277,15 +295,31 @@ std::vector<uint8_t> buildExportPdb(const ExportModel& model) {
     }
 
     // --- lay out pages (page 0 = file header; tables start at page 1) ---
+    // Emit the full standard table set in rekordbox's order; unpopulated tables
+    // get a single empty data page so their pointers still resolve.
+    static const std::vector<std::vector<uint8_t>> empty;
     struct Tbl { PageType type; const std::vector<std::vector<uint8_t>>* rows; };
     const std::vector<Tbl> tables = {
         {PageType::Tracks, &track_rows},
+        {PageType::Genres, &genre_rows},
         {PageType::Artists, &artist_rows},
         {PageType::Albums, &album_rows},
-        {PageType::Genres, &genre_rows},
+        {PageType::Labels, &empty},
         {PageType::Keys, &key_rows},
+        {PageType::Colors, &color_rows},
         {PageType::PlaylistTree, &pl_tree_rows},
         {PageType::PlaylistEntries, &pl_entry_rows},
+        {PageType::Unknown9, &empty},
+        {PageType::Unknown10, &empty},
+        {PageType::HistoryPlaylists, &empty},
+        {PageType::HistoryEntries, &empty},
+        {PageType::Artwork, &empty},
+        {PageType::Unknown14, &empty},
+        {PageType::Unknown15, &empty},
+        {PageType::Columns, &empty},
+        {PageType::Unknown17, &empty},
+        {PageType::Unknown18, &empty},
+        {PageType::History, &empty},
     };
 
     std::vector<std::vector<uint8_t>> body_pages;  // pages 1..N

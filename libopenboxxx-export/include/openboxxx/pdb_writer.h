@@ -30,10 +30,13 @@ constexpr uint32_t kPageHeaderSize = 0x28;  // heap starts here (== heap_pos)
 constexpr uint32_t kRowsPerGroup = 16;
 constexpr uint8_t kPageFlagsData = 0x34;    // is_data_page == (flags & 0x40)==0
 
-// DeviceSQL page type ids (subset we populate). Values per §B.2.
+// DeviceSQL page type ids. Full standard set rekordbox emits (values per the
+// crate-digger page_type enum); we populate some and emit the rest empty.
 enum class PageType : uint32_t {
     Tracks = 0, Genres = 1, Artists = 2, Albums = 3, Labels = 4, Keys = 5,
-    Colors = 6, PlaylistTree = 7, PlaylistEntries = 8, Artwork = 13, Columns = 16,
+    Colors = 6, PlaylistTree = 7, PlaylistEntries = 8, Unknown9 = 9, Unknown10 = 10,
+    HistoryPlaylists = 11, HistoryEntries = 12, Artwork = 13, Unknown14 = 14,
+    Unknown15 = 15, Columns = 16, Unknown17 = 17, Unknown18 = 18, History = 19,
 };
 
 // Index bytes consumed by `n` contiguous row offsets (no gaps): each 16-row

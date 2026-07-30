@@ -27,6 +27,7 @@ static ExportModel demoModel() {
     t.duration_s = 180;
     t.sample_rate = 44100;
     t.file_path = "/Contents/openboxxx/demo.flac";
+    t.color = Rgb{0xF8, 0x70, 0x90};  // Red -> colour id 2
     t.beatgrid = {{1, 12800, 0}, {2, 12800, 469}, {3, 12800, 938}, {4, 12800, 1407}};
     t.cues.push_back({CueKind::MemoryCue, -1, 0, std::nullopt, std::nullopt, "intro"});
     t.cues.push_back({CueKind::HotCue, 0, 30000, std::nullopt, Rgb{0xF8, 0x70, 0x90}, "A"});

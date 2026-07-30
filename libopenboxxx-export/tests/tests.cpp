@@ -126,6 +126,11 @@ TEST(exporter_produces_pdb_plus_anlz_per_track) {
     // export.pdb + one ANLZ.
     CHECK(image.files.size() == 2);
     CHECK(image.files[0].path == "/PIONEER/rekordbox/export.pdb");
+    // PDB is now real: non-empty and a whole number of 4096-byte pages
+    // (page 0 header + 20 table pages = 21 pages).
+    CHECK(!image.files[0].bytes.empty());
+    CHECK(image.files[0].bytes.size() % kPageSize == 0);
+    CHECK(image.files[0].bytes.size() == 21 * kPageSize);
     // ANLZ path was assigned and matches the track record.
     CHECK(!m.tracks.empty());
     CHECK(image.files[1].path == anlzPathForTrack(0x100));
