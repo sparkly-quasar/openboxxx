@@ -2,16 +2,19 @@
 //
 // export.pdb writer. LITTLE-endian DeviceSQL page database.
 // Spec: docs/research-findings.md §B.2. Byte layout follows crate-digger's
-// rekordbox_pdb.ksy (EPL-1.0 spec, not copied code).
+// rekordbox_pdb.ksy (EPL-1.0 spec), cross-checked field-by-field against a real
+// rekordbox export via the Kaitai read-back parser (verification tier 1/2).
 //
-// This file scaffolds the two hardest, most format-specific pieces:
-//   * PdbPage    -- a single 4096-byte page: forward heap + backward 16-row-group
-//                   index. The page-fill bookkeeping is implemented here.
-//   * PdbWriter  -- orchestrates the file header + per-table page chains.
+//   * PdbPage    -- a single 4096-byte page: forward heap from 0x28 + backward
+//                   16-row-group index (base = len_page - group*36; row offset
+//                   at base-(6+2*i); present flags at base-4).
+//   * buildExportPdb -- file header + table-pointer array + per-table page chains.
 //
-// ⚠️ The exact row-group offset semantics and the track_row magic constants are
-// best-effort until validated against a real rekordbox stick (verification
-// tier 2). See docs/export-design.md "Open questions carried into Phase 0".
+// Observed constants are copied from a real (rekordbox 5/6) export and may be
+// version-sensitive; see docs/export-design.md open questions. Row-level fields
+// that only rekordbox itself consumes (index_shift, the track_row "magic" u-
+// fields) are set to observed/neutral values and refined as hardware testing
+// demands.
 #ifndef OPENBOXXX_PDB_WRITER_H
 #define OPENBOXXX_PDB_WRITER_H
 
@@ -23,48 +26,42 @@
 namespace openboxxx {
 
 constexpr uint32_t kPageSize = 4096;
-constexpr uint32_t kPageHeaderSize = 0x28;
-constexpr uint32_t kRowGroupBytes = 0x24;  // 16 offsets(32) + present(2) + txn(2)
+constexpr uint32_t kPageHeaderSize = 0x28;  // heap starts here (== heap_pos)
 constexpr uint32_t kRowsPerGroup = 16;
+constexpr uint8_t kPageFlagsData = 0x34;    // is_data_page == (flags & 0x40)==0
 
-// DeviceSQL page type ids (subset needed for the MVP). Values per §B.2.
+// DeviceSQL page type ids (subset we populate). Values per §B.2.
 enum class PageType : uint32_t {
     Tracks = 0, Genres = 1, Artists = 2, Albums = 3, Labels = 4, Keys = 5,
     Colors = 6, PlaylistTree = 7, PlaylistEntries = 8, Artwork = 13, Columns = 16,
 };
 
-// Builds one 4096-byte data page and manages the forward-heap / backward-index
-// packing. Rows are pre-serialized byte blobs supplied by the table writers.
+// Index bytes consumed by `n` contiguous row offsets (no gaps): each 16-row
+// group costs 36 bytes; a partial final group costs 4 + 2*rem. Verified against
+// a real page (n=11 -> 26 bytes).
+uint32_t pdbIndexBytes(uint32_t n);
+
+// Builds one 4096-byte data page, packing pre-serialized rows (forward heap +
+// backward row index). The page's own index is supplied at finalize time (it is
+// only known after all tables have been laid out).
 class PdbPage {
 public:
-    PdbPage(uint32_t page_index, PageType type) : page_index_(page_index), type_(type) {}
+    explicit PdbPage(PageType type) : type_(type) {}
 
-    // Attempt to add a pre-serialized row. Returns false (without mutating) if it
-    // would collide the forward heap with the backward row index.
+    // Attempt to add a pre-serialized row; false (no mutation) if it won't fit.
     bool tryAddRow(const std::vector<uint8_t>& row);
-
     std::size_t rowCount() const { return rows_.size(); }
 
-    // Serialize to exactly kPageSize bytes. `next_page_index` links the chain.
-    std::vector<uint8_t> finalize(uint32_t next_page_index) const;
+    std::vector<uint8_t> finalize(uint32_t page_index, uint32_t next_page_index) const;
 
 private:
-    std::size_t indexBytesFor(std::size_t num_rows) const {
-        const std::size_t groups = (num_rows + kRowsPerGroup - 1) / kRowsPerGroup;
-        return groups * kRowGroupBytes;
-    }
-    std::size_t heapBytes() const { return heap_used_; }
-
-    uint32_t page_index_;
     PageType type_;
     std::size_t heap_used_ = 0;
     std::vector<std::vector<uint8_t>> rows_;
 };
 
-// Top-level: turn an ExportModel into export.pdb bytes.
-// TODO(phase0): implement the track / lookup / playlist row serializers and the
-// file header + table-pointer array. Currently returns an empty header-only stub
-// so the pipeline compiles and can be wired end-to-end.
+// Turn an ExportModel into export.pdb bytes: tracks + referenced lookup tables
+// (artists/albums/genres/keys) + playlist_tree/playlist_entries.
 std::vector<uint8_t> buildExportPdb(const ExportModel& model);
 
 }  // namespace openboxxx

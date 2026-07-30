@@ -87,20 +87,31 @@ TEST(anlz_container_and_sections) {
 
 // --- PDB page framing invariants ---
 TEST(pdb_page_is_4096_and_tracks_rows) {
-    PdbPage page(1, PageType::Tracks);
+    PdbPage page(PageType::Tracks);
     CHECK(page.tryAddRow(std::vector<uint8_t>(10, 0xAB)));
     CHECK(page.tryAddRow(std::vector<uint8_t>(20, 0xCD)));
     CHECK(page.rowCount() == 2);
-    auto bytes = page.finalize(/*next_page_index=*/2);
+    auto bytes = page.finalize(/*page_index=*/1, /*next_page_index=*/2);
     CHECK(bytes.size() == kPageSize);
     // page header sanity: page_index at 0x04, type at 0x08, next_page at 0x0c (LE)
     CHECK(bytes[4] == 1);
     CHECK(bytes[8] == uint8_t(PageType::Tracks));
     CHECK(bytes[12] == 2);
+    // data-page flag at 0x1b; num_row_offsets/num_rows packed 24-bit at 0x18.
+    CHECK(bytes[0x1b] == kPageFlagsData);
+    CHECK(bytes[0x18] == 2);   // num_row_offsets low byte == 2
+}
+
+TEST(pdb_index_bytes_formula) {
+    CHECK(pdbIndexBytes(0) == 0);
+    CHECK(pdbIndexBytes(1) == 6);    // 4 + 2
+    CHECK(pdbIndexBytes(11) == 26);  // matches a real page (free/used reconciles)
+    CHECK(pdbIndexBytes(16) == 36);  // one full group
+    CHECK(pdbIndexBytes(17) == 42);  // full group + 4 + 2
 }
 
 TEST(pdb_page_rejects_overflow) {
-    PdbPage page(0, PageType::Tracks);
+    PdbPage page(PageType::Tracks);
     // A single row too large to fit alongside the header + one row group.
     CHECK(!page.tryAddRow(std::vector<uint8_t>(kPageSize, 0)));
     CHECK(page.rowCount() == 0);
