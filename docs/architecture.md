@@ -44,9 +44,11 @@ Mixxx library (tracks + cues + beatgrids + waveforms + crates/playlists)
 
 1. **Legacy PDB/ANLZ** — baseline. Read by essentially every export-capable CDJ from ~2010 on
    (CDJ-2000NXS2 and the huge installed base). Widest reach, best-understood format.
-2. **OneLibrary / Device Library Plus** — AlphaTheta's own sanctioned cross-software format
-   (Oct 2025). Cleaner, legally friendlier, but only newest firmware/models:
-   CDJ-3000X, CDJ-3000 (fw 3.30+), XDJ-AZ, OPUS-QUAD, OMNIS-DUO.
+2. **OneLibrary / Device Library Plus** — AlphaTheta's own cross-software format (Oct 2025), only
+   newest firmware/models: CDJ-3000X, CDJ-3000 (fw 3.30+), XDJ-AZ, OPUS-QUAD, OMNIS-DUO.
+   ⚠️ **Legally the harder target, not the easier one:** its `exportLibrary.db` is
+   SQLCipher-encrypted, so writing it means circumventing encryption. Pursue ONLY via an official
+   spec/partnership. See [legal.md](legal.md) and [mixxx-export-status.md](mixxx-export-status.md).
 
 ## Hardware test matrix (to define next)
 
@@ -66,7 +68,8 @@ open community so breaks get caught and patched in days, not never.
 
 ## Open research tasks
 
-- [ ] Survey the state of the Mixxx export effort (mixxxdj/mixxx#9463, #15556) — what's done vs TODO.
+- [x] Survey the state of the Mixxx export effort → see [mixxx-export-status.md](mixxx-export-status.md).
+- [ ] Confirm in-repo: the Engine DJ exporter interface (#12126) + `lib/rekordbox-metadata/`.
 - [ ] Deep-read pyrekordbox's ANLZ/PDB writers to map the byte layout.
+- [ ] Prototype a standalone PDB/ANLZ writer + round-trip verifier (spike, before touching Mixxx).
 - [ ] Define the exact Mixxx→rekordbox cue/beatgrid mapping.
-- [ ] Design the verifier's report format.
