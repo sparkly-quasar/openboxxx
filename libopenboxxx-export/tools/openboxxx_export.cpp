@@ -4,9 +4,15 @@
 // the writers, and report what came out. This is how we exercise the library
 // without Mixxx while the byte layout is still being nailed down.
 //
-// TODO(phase0): load a real fixture library (JSON) and actually write files to a
-// target directory. For now it runs a built-in one-track model as a smoke test.
+// Usage:
+//   openboxxx_export_cli              -- smoke test on a built-in demo model
+//   openboxxx_export_cli --out DIR    -- also write the USB image under DIR
+//
+// TODO(phase0): load a real fixture library (JSON) instead of the demo model.
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <string>
 
 #include "openboxxx/diag.h"
 #include "openboxxx/exporter.h"
@@ -35,7 +41,26 @@ static ExportModel demoModel() {
     return m;
 }
 
-int main() {
+static void writeImage(const UsbImage& image, const std::string& out_dir) {
+    namespace fs = std::filesystem;
+    for (const UsbFile& f : image.files) {
+        // f.path is media-root-relative with a leading '/'; join under out_dir.
+        const fs::path dest = fs::path(out_dir) / f.path.substr(1);
+        fs::create_directories(dest.parent_path());
+        std::ofstream os(dest, std::ios::binary);
+        os.write(reinterpret_cast<const char*>(f.bytes.data()),
+                 std::streamsize(f.bytes.size()));
+    }
+    std::printf("Wrote USB image under %s\n", out_dir.c_str());
+}
+
+int main(int argc, char** argv) {
+    std::string out_dir;
+    for (int i = 1; i < argc; ++i) {
+        const std::string a = argv[i];
+        if (a == "--out" && i + 1 < argc) out_dir = argv[++i];
+    }
+
     ExportModel model = demoModel();
     UsbImage image = buildUsbImage(model);
 
@@ -43,6 +68,7 @@ int main() {
     for (const UsbFile& f : image.files) {
         std::printf("  %-48s %zu bytes\n", f.path.c_str(), f.bytes.size());
     }
+    if (!out_dir.empty()) writeImage(image, out_dir);
     std::printf("\n%s\n", buildDiagnosticManifest(model).c_str());
     return 0;
 }
