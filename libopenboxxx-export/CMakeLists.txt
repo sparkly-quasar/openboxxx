@@ -57,4 +57,22 @@ if(_oracle_py)
   else()
     message(STATUS "pyrekordbox not importable via ${_oracle_py}; skipping anlz_oracle test")
   endif()
+
+  # Tier-1 PDB round-trip also needs kaitai-struct-compiler + the kaitaistruct
+  # runtime (to compile third_party/crate-digger/rekordbox_pdb.ksy at test time).
+  find_program(_ksc kaitai-struct-compiler)
+  execute_process(COMMAND "${_oracle_py}" -c "import kaitaistruct"
+                  RESULT_VARIABLE _has_ks OUTPUT_QUIET ERROR_QUIET)
+  if(_ksc AND _has_ks EQUAL 0)
+    add_test(NAME pdb_roundtrip COMMAND ${CMAKE_COMMAND}
+      -DCLI=$<TARGET_FILE:openboxxx_export_cli>
+      -DPYTHON3=${_oracle_py}
+      -DKSC=${_ksc}
+      -DKSY=${CMAKE_CURRENT_SOURCE_DIR}/third_party/crate-digger/rekordbox_pdb.ksy
+      -DSCRIPT=${CMAKE_CURRENT_SOURCE_DIR}/tools/verify_pdb.py
+      -DWORKDIR=${CMAKE_CURRENT_BINARY_DIR}/pdbrt
+      -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_pdb_roundtrip.cmake)
+  else()
+    message(STATUS "kaitai-struct-compiler or kaitaistruct missing; skipping pdb_roundtrip test")
+  endif()
 endif()
