@@ -9,7 +9,7 @@ Phase 0).
 ## Layout
 
 ```
-include/openboxxx/   public headers (model, byteio, writers, exporter)
+include/openboxxx/   public headers (model, byteio, writers, exporter, reader)
 src/
   pdb/     export.pdb writer (LITTLE-endian DeviceSQL pages) + device_sql_string
   anlz/    ANLZ .DAT writer (BIG-endian tagged sections)
@@ -17,8 +17,10 @@ src/
   mapping/ rekordbox colour/rating/key encodings (invert Mixxx importer)
   verify/  round-trip check (tier 1) — stub pending Kaitai parser wiring
   diag/    diagnostic manifest for the in-app bug reporter
-tools/     openboxxx_export_cli — Phase 0 driver / smoke test
-tests/     dependency-free unit tests
+  adapter/ mixxxdb.sqlite -> ExportModel reader + beats-blob protobuf parser (Phase 1)
+tools/     openboxxx_export_cli   — Phase 0 driver / smoke test
+           openboxxx_from_mixxx   — Phase 1 reader CLI (real library -> USB)
+tests/     dependency-free unit tests (+ SQLite fixture tests for the adapter)
 ```
 
 ## Build & test
@@ -55,6 +57,31 @@ PYTHONPATH=/tmp/p python3 tools/verify_pdb.py OURS/PIONEER/rekordbox/export.pdb
 Each oracle test registers only if its tools are present, so environments
 without them simply skip it.
 
+## Export from a real Mixxx library (Phase 1, reader path)
+
+If SQLite is available at configure time, the build also produces
+`openboxxx_from_mixxx` — a standalone CLI that reads a Mixxx `mixxxdb.sqlite`
+directly (no Mixxx build required) and writes a CDJ USB image. The eventual
+in-Mixxx export job fills the *same* `ExportModel`, so all mapping decisions are
+shared.
+
+```sh
+# dry run — read the library and report counts, write nothing
+./build/openboxxx_from_mixxx --db "$HOME/.mixxx/mixxxdb.sqlite"
+
+# write the PIONEER/ tree (and optionally copy the audio for a playable stick)
+./build/openboxxx_from_mixxx --db /path/to/mixxxdb.sqlite --out /Volumes/USB --copy-audio
+
+#   --limit N          export only the first N tracks (quick tests)
+#   --no-intro-outro   don't map Mixxx Intro/Outro cues as memory cues
+```
+
+The DB is opened **read-only**; the tool never modifies the user's library.
+Units decoded and validated against a real 2.x library: cue positions are
+fractional *stereo samples*, beatgrid first-beat is in *frames*, colours are
+`0x00RRGGBB`. macOS default DB path is
+`~/Library/Containers/org.mixxx.mixxx/Data/Library/Application Support/Mixxx/mixxxdb.sqlite`.
+
 ## Status (Phase 0)
 
 | Piece | State |
@@ -75,3 +102,14 @@ cues) now round-trips through independent parsers. Remaining before a hardware
 test: refine the observed track_row constants / `index_shift` across rekordbox
 versions, and add artwork. ANLZ Phase-2 (cosmetic): `vbr`, `wf_preview`,
 `wf_tiny_preview`.
+
+## Status (Phase 1 — reader path)
+
+| Piece | State |
+|---|---|
+| `beats` blob protobuf parser (BeatGrid-2.0 / BeatMap-1.0) | ✅ implemented + unit-tested |
+| `mixxxdb.sqlite` reader → `ExportModel` | ✅ implemented + SQLite-fixture tested |
+| `openboxxx_from_mixxx` CLI (real library → USB) | ✅ works; audio copy behind `--copy-audio` |
+| Validated on a real ~2,900-track library | ✅ `export.pdb` round-trips; ANLZ cue/beat times match the DB exactly |
+| In-Mixxx `RekordboxExportJob` + dialog + CMake option | ⛔ next — fills the same model from live objects |
+| Diff vs a rekordbox-desktop export (tier 2) / import test (tier 3) | ⛔ next, using a local rekordbox install |

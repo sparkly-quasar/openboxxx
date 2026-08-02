@@ -76,5 +76,6 @@ verification ladder, in-app bug reporting) lives in [export-design.md](export-de
 - [x] Survey the state of the Mixxx export effort → see [mixxx-export-status.md](mixxx-export-status.md).
 - [x] Confirm in-repo: the Engine DJ exporter interface (#12126) + `lib/rekordbox-metadata/` → [research-findings.md](research-findings.md) §A.
 - [x] Deep-read pyrekordbox's ANLZ/PDB writers to map the byte layout → [research-findings.md](research-findings.md) §B.
-- [ ] Prototype a standalone PDB/ANLZ writer + round-trip verifier (spike, before touching Mixxx) → Phase 0, see [export-design.md](export-design.md).
+- [x] Prototype a standalone PDB/ANLZ writer + round-trip verifier (spike, before touching Mixxx) → Phase 0 done; validated by `pdb_roundtrip` + `anlz_oracle`, see [export-design.md](export-design.md).
+- [x] Phase 1 reader path: read `mixxxdb.sqlite` → `ExportModel` (`openboxxx_from_mixxx`), validated on a real ~2,900-track library.
 - [x] Define the exact Mixxx→rekordbox cue/beatgrid mapping → mapping inverts importer, [research-findings.md](research-findings.md) §A.4.

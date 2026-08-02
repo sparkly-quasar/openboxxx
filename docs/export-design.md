@@ -78,7 +78,14 @@ struct padding, or `wchar_t` size:
   mapping/verify. Driven by a tiny CLI or test harness (feed a fixture library → write a stick).
   Exit criteria: verifier tiers 1–2 green, and a stick plays on a real CDJ (tier 4) with correct
   beatgrids + hot/memory cues.
-- **Phase 1 — Mixxx integration.** Add `RekordboxExportJob` (mirrors `EnginePrimeExportJob`:
+- **Phase 1 — Mixxx integration.** Started with a **reader-path sub-step** (done):
+  `openboxxx_from_mixxx` reads a Mixxx `mixxxdb.sqlite` directly into `ExportModel`
+  (no Mixxx build required), so real libraries flow through the Phase-0 writer today
+  and beta testers can export without compiling Mixxx. Units were decoded and
+  validated against a real ~2,900-track library (cue positions = fractional stereo
+  samples; beatgrid first-beat = frames; colours = `0x00RRGGBB`; `beats` BLOB is a
+  small protobuf parsed by hand). The in-Mixxx path then reuses the identical model:
+  add `RekordboxExportJob` (mirrors `EnginePrimeExportJob`:
   `QThread` + `loadIds/loadTrack/loadCrate/loadPlaylist` marshalling + `jobMaximum/jobProgress/
   completed/failed` signals — research-findings §A.3), a generalized export dialog, and a new CMake
   option mirroring `ENGINEPRIME`/`__ENGINEPRIME__`. Wire in the in-app bug report (diag/). Propose
