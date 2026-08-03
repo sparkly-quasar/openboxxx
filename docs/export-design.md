@@ -78,7 +78,14 @@ struct padding, or `wchar_t` size:
   mapping/verify. Driven by a tiny CLI or test harness (feed a fixture library → write a stick).
   Exit criteria: verifier tiers 1–2 green, and a stick plays on a real CDJ (tier 4) with correct
   beatgrids + hot/memory cues.
-- **Phase 1 — Mixxx integration.** Add `RekordboxExportJob` (mirrors `EnginePrimeExportJob`:
+- **Phase 1 — Mixxx integration.** Started with a **reader-path sub-step** (done):
+  `openboxxx_from_mixxx` reads a Mixxx `mixxxdb.sqlite` directly into `ExportModel`
+  (no Mixxx build required), so real libraries flow through the Phase-0 writer today
+  and beta testers can export without compiling Mixxx. Units were decoded and
+  validated against a real ~2,900-track library (cue positions = fractional stereo
+  samples; beatgrid first-beat = frames; colours = `0x00RRGGBB`; `beats` BLOB is a
+  small protobuf parsed by hand). The in-Mixxx path then reuses the identical model:
+  add `RekordboxExportJob` (mirrors `EnginePrimeExportJob`:
   `QThread` + `loadIds/loadTrack/loadCrate/loadPlaylist` marshalling + `jobMaximum/jobProgress/
   completed/failed` signals — research-findings §A.3), a generalized export dialog, and a new CMake
   option mirroring `ENGINEPRIME`/`__ENGINEPRIME__`. Wire in the in-app bug report (diag/). Propose
@@ -136,10 +143,17 @@ Goal: one click in Mixxx turns a failed/odd export into a structured, reproducib
 ## Integration + licensing notes
 
 - **License:** the module is **GPLv2** (Mixxx-compatible). ANLZ layout is **ported** from
-  pyrekordbox (**MIT** → GPLv2-compatible; attribute it). PDB layout comes from crate-digger's
-  `.ksy` **spec** (EPL-1.0) as a format description, not copied code. `kimtore/rex` is
-  **unlicensed** → learn-from-only, never copy. Confirm the license of
+  pyrekordbox (Dylan Jones, **MIT** → GPLv2-compatible; attribute it). PDB layout comes from
+  crate-digger's `.ksy` **spec** (Deep Symmetry / James Elliott, EPL-1.0) as a format
+  description, not copied code. `ambientsound/rex` (@kimtore) is **unlicensed** →
+  learn-from-only, never copy. Confirm the license of
   `AnnoyingTechnology/rhythmbox-to-pioneer-xdj-exporter` before reusing anything from it.
+- **Prior art / credit (see also the README "Credits & prior art"):** the Mixxx-side adapter
+  mirrors the architecture of **libdjinterop** (@mr-smidge), which powers Mixxx's Engine Prime
+  export. **rekordcrate** (Jan Holthuis / @Holzhaus) is a Rust PDB parser/serializer and the
+  maintainer-suggested path for PDB export; openboxxx is an independent C++ writer, so which
+  library Mixxx adopts for #9463 is an open question. Earlier community exporters:
+  `arximboldi/mixxx-db-tools`, `TheKantankerus/MixxxToRekordbox`, `FrankwaP/mixxx-utils`.
 - **Upstreamability:** keeping the byte-writers in a clean standalone lib with its own tests makes
   the eventual Mixxx PR far smaller and easier to review — the PR is mostly the adapter + dialog +
   CMake option, with the scary serialization already tested independently.
@@ -150,4 +164,13 @@ Goal: one click in Mixxx turns a failed/odd export into a structured, reproducib
   down from a real export before guessing.
 - PDB empty-leading-page convention + `first_page`/`last_page` semantics — validate on hardware.
 - ANLZ-path hash quirk — confirm whether newer firmware requires a specific folder-path hash.
-- Which rekordbox desktop version(s) to standardize on for verification tier 3.
+- Which rekordbox desktop version(s) to standardize on for verification tier 3. **Finding
+  (2026-08-02):** a real rekordbox-7 stick writes the classic `export.pdb` as an *empty
+  compatibility shell* (0 tracks) and puts the real library in the SQLCipher-encrypted
+  `exportLibrary.db` (OneLibrary). So rb7's device browser may prefer the encrypted DB when
+  present — **use rekordbox 5 (pre-OneLibrary) as the classic-PDB/ANLZ tier-3 target.**
+- **`columns`/`unknown_17`/`unknown_18`/`history` tables (Phase-0 gap, found 2026-08-02):** a
+  genuine `export.pdb` populates `columns` (27 rows — the browse/sort menu categories),
+  `unknown_17` (22), `unknown_18` (17) and `history` (1) *even when the track library is empty*
+  (they're library-independent). Our writer leaves all four empty. Unknown whether CDJs require
+  them or fall back to firmware defaults — populate from a real reference and confirm on hardware.
