@@ -29,22 +29,27 @@ hard fork. See [docs/architecture.md](docs/architecture.md).
 
 ## Status
 
-**Phase 0 (standalone writer) — core proven.** The byte-level CDJ USB writer exists and is
-validated: [`libopenboxxx-export/`](libopenboxxx-export/) turns a plain track/playlist model into
-a real `export.pdb` (all 20 standard tables + the 8-colour palette) plus per-track ANLZ analysis
-files (beat grids + hot/memory cues). Every output is checked against **two independent
-real-rekordbox-format parsers** (pyrekordbox for ANLZ, a crate-digger-spec Kaitai parser for PDB),
-so we can prove the bytes are right, not just hope.
+**Phase 0 (standalone writer) — proven.** [`libopenboxxx-export/`](libopenboxxx-export/) turns a
+plain track/playlist model into a real `export.pdb` (all 20 standard tables + the 8-colour palette)
+plus per-track ANLZ analysis files (beat grids + hot/memory cues). Every output is checked against
+**two independent real-rekordbox-format parsers** (pyrekordbox for ANLZ, a crate-digger-spec Kaitai
+parser for PDB), and diffed field-for-field against genuine rekordbox ANLZ files.
 
-**Not yet done — Phase 1 (Mixxx integration).** There is no in-Mixxx export button yet. Mixxx has
-no plugin API for this, so integration means adding a `RekordboxExportJob` (mirroring the existing
-Engine DJ exporter) compiled into Mixxx, plus an adapter that fills the export model from Mixxx's
-live library — to be upstreamed, not shipped as a loadable plugin. See the roadmap in
-[docs/export-design.md](docs/export-design.md).
+**Phase 1 (Mixxx integration) — working.** Both the reader path and the in-Mixxx button exist:
 
-**Not yet done — hardware validation.** The output round-trips through parsers but has not been
-tested on a physical CDJ/XDJ (verification-ladder tier 4). That is the real proof and comes after
-a `--write-to-USB` path + a borrowed player.
+- `openboxxx_from_mixxx` reads a `mixxxdb.sqlite` directly into the export model (no Mixxx build
+  needed), validated on a real ~2,900-track library.
+- An in-Mixxx **"Export Library to rekordbox USB"** button — a `RekordboxExportJob` + dialog
+  mirroring the Engine DJ exporter, behind a `REKORDBOX_EXPORT` CMake option — plus a **"Cue Sheet
+  to Tracklist"** tool. This lives in a Mixxx fork and **compiles + links on macOS (Intel + Apple
+  Silicon), Windows, and Linux** via CI. Downloadable builds are on the
+  [**Releases**](https://github.com/sparkly-quasar/openboxxx/releases) page; source is
+  [sparkly-quasar/mixxx `feat/rekordbox-usb-export`](https://github.com/sparkly-quasar/mixxx/tree/feat/rekordbox-usb-export).
+
+**Still to confirm — desktop import & hardware.** Exports complete without errors and round-trip
+through the parsers, but haven't yet been confirmed by importing into rekordbox **desktop**
+(verification tier 3) or playing on a physical **CDJ/XDJ** (tier 4). Those are the real proof —
+**CDJ hardware testers are very welcome.**
 
 See [`libopenboxxx-export/README.md`](libopenboxxx-export/README.md) for the component-by-component
 status table and how to build + run the verification tests.

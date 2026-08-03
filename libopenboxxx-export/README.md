@@ -115,8 +115,11 @@ versions, and add artwork. ANLZ Phase-2 (cosmetic): `vbr`, `wf_preview`,
 | Tier-2 diff vs genuine rekordbox ANLZ | ✅ shared sections (`PPTH`/`PQTZ`/`PCOB`×2) match field-for-field; only `vbr`+waveforms missing (Phase 2) |
 | — found + fixed: negative-position hot cue dropped | ✅ now clamped to 0 (was silently losing a hot cue) |
 | — found + fixed: duplicate memory cue (MainCue≡Intro) | ✅ now deduped by millisecond |
-| In-Mixxx `RekordboxExportJob` + dialog + CMake option | ⛔ next — fills the same model from live objects |
-| Import test in rekordbox desktop (tier 3) | ⛔ pending — needs a removable volume + GUI (manual smoke test) |
+| In-Mixxx `RekordboxExportJob` + dialog + Library-menu button | ✅ built (behind `REKORDBOX_EXPORT`) in a Mixxx fork; fills the same model from live objects |
+| In-Mixxx "Cue Sheet → Tracklist" tool | ✅ built (`.cue` → `.txt`) |
+| Cross-platform build | ✅ compiles + links on macOS Intel/ARM, Windows, Linux (CI green); downloadable [Releases](https://github.com/sparkly-quasar/openboxxx/releases) |
+| Import test in rekordbox desktop (tier 3) | ⛔ pending — not yet confirmed |
+| Physical CDJ/XDJ hardware (tier 4) | ⛔ pending — the real proof; testers welcome |
 
 Known minor deviation (not yet changed): rekordbox writes the hot-cue `PCOB`
 before the memory `PCOB`; we emit memory first. Readers key off each list's
