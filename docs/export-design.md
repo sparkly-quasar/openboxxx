@@ -143,10 +143,17 @@ Goal: one click in Mixxx turns a failed/odd export into a structured, reproducib
 ## Integration + licensing notes
 
 - **License:** the module is **GPLv2** (Mixxx-compatible). ANLZ layout is **ported** from
-  pyrekordbox (**MIT** → GPLv2-compatible; attribute it). PDB layout comes from crate-digger's
-  `.ksy` **spec** (EPL-1.0) as a format description, not copied code. `kimtore/rex` is
-  **unlicensed** → learn-from-only, never copy. Confirm the license of
+  pyrekordbox (Dylan Jones, **MIT** → GPLv2-compatible; attribute it). PDB layout comes from
+  crate-digger's `.ksy` **spec** (Deep Symmetry / James Elliott, EPL-1.0) as a format
+  description, not copied code. `ambientsound/rex` (@kimtore) is **unlicensed** →
+  learn-from-only, never copy. Confirm the license of
   `AnnoyingTechnology/rhythmbox-to-pioneer-xdj-exporter` before reusing anything from it.
+- **Prior art / credit (see also the README "Credits & prior art"):** the Mixxx-side adapter
+  mirrors the architecture of **libdjinterop** (@mr-smidge), which powers Mixxx's Engine Prime
+  export. **rekordcrate** (Jan Holthuis / @Holzhaus) is a Rust PDB parser/serializer and the
+  maintainer-suggested path for PDB export; openboxxx is an independent C++ writer, so which
+  library Mixxx adopts for #9463 is an open question. Earlier community exporters:
+  `arximboldi/mixxx-db-tools`, `TheKantankerus/MixxxToRekordbox`, `FrankwaP/mixxx-utils`.
 - **Upstreamability:** keeping the byte-writers in a clean standalone lib with its own tests makes
   the eventual Mixxx PR far smaller and easier to review — the PR is mostly the adapter + dialog +
   CMake option, with the scary serialization already tested independently.

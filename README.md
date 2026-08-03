@@ -57,6 +57,36 @@ status table and how to build + run the verification tests.
 - [docs/research-findings.md](docs/research-findings.md) — source-cited research: Mixxx internals + PDB/ANLZ byte formats
 - [docs/mixxx-export-status.md](docs/mixxx-export-status.md) — state of Mixxx's export effort (what exists vs. what's left)
 
+## Credits & prior art
+
+openboxxx stands on a lot of other people's work — both the format reverse-engineering
+that makes writing these files possible and earlier Mixxx→rekordbox efforts.
+
+**Format research:**
+- [crate-digger](https://github.com/Deep-Symmetry/crate-digger) &
+  [dysentery](https://github.com/Deep-Symmetry/dysentery) — Deep Symmetry (James Elliott):
+  the PDB/ANLZ reverse-engineering and the `.ksy` spec this project round-trips its output
+  against (EPL-1.0, used as a format description, not copied code).
+- [pyrekordbox](https://github.com/dylanljones/pyrekordbox) — Dylan Jones (MIT): ANLZ layouts
+  referenced here, and an independent parser the tests use as an oracle.
+
+**Prior rekordbox/PDB libraries & exporters:**
+- [rekordcrate](https://github.com/Holzhaus/rekordcrate) — Jan Holthuis (**@Holzhaus**): a Rust
+  PDB parser/serializer (PDB serialization is merged) and the Mixxx maintainer-suggested path
+  for PDB export.
+- [libdjinterop](https://github.com/xsco/libdjinterop) — **@mr-smidge**: the library behind
+  Mixxx's existing Engine Prime export; the Mixxx adapter here mirrors its export-job/dialog
+  architecture.
+- [rex](https://github.com/ambientsound/rex) (**@kimtore**),
+  [mixxx-db-tools](https://github.com/arximboldi/mixxx-db-tools) (**@arximboldi**),
+  `TheKantankerus/MixxxToRekordbox`, and `FrankwaP/mixxx-utils`: earlier community approaches to
+  getting Mixxx libraries onto CDJs.
+
+**Context:** this addresses the long-standing feature request
+[mixxxdj/mixxx#9463](https://github.com/mixxxdj/mixxx/issues/9463). openboxxx's writer is a
+standalone **C++** library — a third path alongside rekordcrate (Rust) and libdjinterop (C++).
+Which architecture Mixxx should ultimately adopt is an open discussion, not settled here.
+
 ## License
 
 Because this builds on Mixxx (GPLv2), this project is **GPLv2** as well. That copyleft is a
