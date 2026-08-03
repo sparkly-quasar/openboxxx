@@ -187,6 +187,79 @@ TEST(reader_maps_tracks_cues_playlists) {
     fs::remove(db);
 }
 
+// Regression fixture for two tier-2 fidelity fixes found against a real library:
+// (1) a hot cue nudged before the start (negative position) must be clamped to 0
+//     and kept, not dropped; (2) a MainCue and an Intro that coincide must not
+//     produce two stacked memory cues at the same millisecond.
+namespace {
+bool buildCueFixture(const std::string& path) {
+    sqlite3* db = nullptr;
+    if (sqlite3_open(path.c_str(), &db) != SQLITE_OK) return false;
+    exec(db,
+         "CREATE TABLE track_locations(id INTEGER PRIMARY KEY, location TEXT, "
+         "filename TEXT, directory TEXT, filesize INTEGER, fs_deleted INTEGER, "
+         "needs_verification INTEGER);");
+    exec(db,
+         "CREATE TABLE library(id INTEGER PRIMARY KEY, artist TEXT, title TEXT, "
+         "album TEXT, year TEXT, genre TEXT, tracknumber TEXT, location INTEGER, "
+         "comment TEXT, composer TEXT, duration FLOAT, bitrate INTEGER, "
+         "samplerate INTEGER, channels INTEGER, rating INTEGER, key TEXT, "
+         "beats BLOB, beats_version TEXT, filetype TEXT, color INTEGER, "
+         "mixxx_deleted INTEGER);");
+    exec(db,
+         "CREATE TABLE cues(id INTEGER PRIMARY KEY, track_id INTEGER, "
+         "type INTEGER, position REAL, length REAL, hotcue INTEGER, label TEXT, "
+         "color INTEGER);");
+    exec(db,
+         "CREATE TABLE Playlists(id INTEGER PRIMARY KEY, name TEXT, "
+         "position INTEGER, hidden INTEGER);");
+    exec(db,
+         "CREATE TABLE PlaylistTracks(id INTEGER PRIMARY KEY, "
+         "playlist_id INTEGER, track_id INTEGER, position INTEGER);");
+    exec(db,
+         "INSERT INTO track_locations VALUES"
+         "(20,'/music/x/song.flac','song.flac','/music/x',123,0,0);");
+    exec(db,
+         "INSERT INTO library(id,title,location,duration,samplerate,channels,"
+         "mixxx_deleted) VALUES(1,'Cued',20,200.0,48000,2,0);");
+    // stereo 48k: 96000 samples -> 1000 ms.
+    exec(db,
+         "INSERT INTO cues(id,track_id,type,position,length,hotcue,label,color) "
+         "VALUES"
+         "(1,1,1,-4800,0,2,'',0),"       // hot cue nudged before start -> clamp 0
+         "(2,1,2,96000,0,-1,'',0),"      // MainCue @ 1000ms
+         "(3,1,6,96000,0,-1,'',0);");    // Intro   @ 1000ms (coincides -> dedup)
+    sqlite3_close(db);
+    return true;
+}
+}  // namespace
+
+TEST(reader_clamps_negative_hotcue_and_dedupes_memory) {
+    namespace fs = std::filesystem;
+    const fs::path db = fs::temp_directory_path() / "openboxxx_cue_fixture.sqlite";
+    fs::remove(db);
+    CHECK(buildCueFixture(db.string()));
+
+    ExportModel m = readMixxxDb(db.string());
+    CHECK(m.tracks.size() == 1);
+    if (m.tracks.empty()) return;
+    const Track& t = m.tracks.front();
+
+    int hot = 0, mem = 0;
+    const Cue* hotcue = nullptr;
+    for (const Cue& c : t.cues) {
+        if (c.kind == CueKind::HotCue) { ++hot; hotcue = &c; }
+        if (c.kind == CueKind::MemoryCue) ++mem;
+    }
+    // The negative-position hot cue survives, clamped to 0 ms.
+    CHECK(hot == 1);
+    CHECK(hotcue && hotcue->time_ms == 0);
+    // MainCue + Intro at the same ms collapse to a single memory cue.
+    CHECK(mem == 1);
+
+    fs::remove(db);
+}
+
 int main() {
     setvbuf(stdout, nullptr, _IONBF, 0);  // flush immediately so a crash is visible
     for (auto& [name, fn] : obxtest::registry()) {

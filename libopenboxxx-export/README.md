@@ -73,6 +73,7 @@ shared.
 ./build/openboxxx_from_mixxx --db /path/to/mixxxdb.sqlite --out /Volumes/USB --copy-audio
 
 #   --limit N          export only the first N tracks (quick tests)
+#   --ids A,B,C        export only these Mixxx track ids (targeted test sets)
 #   --no-intro-outro   don't map Mixxx Intro/Outro cues as memory cues
 ```
 
@@ -111,5 +112,13 @@ versions, and add artwork. ANLZ Phase-2 (cosmetic): `vbr`, `wf_preview`,
 | `mixxxdb.sqlite` reader → `ExportModel` | ✅ implemented + SQLite-fixture tested |
 | `openboxxx_from_mixxx` CLI (real library → USB) | ✅ works; audio copy behind `--copy-audio` |
 | Validated on a real ~2,900-track library | ✅ `export.pdb` round-trips; ANLZ cue/beat times match the DB exactly |
+| Tier-2 diff vs genuine rekordbox ANLZ | ✅ shared sections (`PPTH`/`PQTZ`/`PCOB`×2) match field-for-field; only `vbr`+waveforms missing (Phase 2) |
+| — found + fixed: negative-position hot cue dropped | ✅ now clamped to 0 (was silently losing a hot cue) |
+| — found + fixed: duplicate memory cue (MainCue≡Intro) | ✅ now deduped by millisecond |
 | In-Mixxx `RekordboxExportJob` + dialog + CMake option | ⛔ next — fills the same model from live objects |
-| Diff vs a rekordbox-desktop export (tier 2) / import test (tier 3) | ⛔ next, using a local rekordbox install |
+| Import test in rekordbox desktop (tier 3) | ⛔ pending — needs a removable volume + GUI (manual smoke test) |
+
+Known minor deviation (not yet changed): rekordbox writes the hot-cue `PCOB`
+before the memory `PCOB`; we emit memory first. Readers key off each list's
+`cue_type` field, not position, so this is cosmetic — left as-is until a
+populated real reference confirms the convention.

@@ -196,7 +196,14 @@ ExportModel readMixxxDb(const std::string& db_path,
             const double position = sqlite3_column_double(s, 2);
             const double length = sqlite3_column_double(s, 3);
             const int hotcue = sqlite3_column_int(s, 4);
-            if (position < 0) continue;  // unset
+            // Mixxx stores -1 as the "unset" sentinel for cues that were never
+            // placed (a main/intro/outro with no position). Hot cues and loops
+            // always denote a real point; a slightly-negative value is a cue
+            // nudged just before the start, which rekordbox clamps to 0 rather
+            // than dropping (samplesToMs clamps the negative to 0). Preserve
+            // those so we don't silently lose a hot cue.
+            const bool always_positional = (type == kCueHot || type == kCueLoop);
+            if (position < 0 && !always_positional) continue;  // unset cue
 
             auto chit = channels_by_id.find(track_id);
             const int ch = chit != channels_by_id.end() ? chit->second : 2;
@@ -243,7 +250,22 @@ ExportModel readMixxxDb(const std::string& db_path,
         }
         for (Track& t : model.tracks) {
             auto it = cues_by_track.find(t.id);
-            if (it != cues_by_track.end()) t.cues = std::move(it->second);
+            if (it == cues_by_track.end()) continue;
+            // Drop redundant memory cues that land on the same millisecond: a
+            // Mixxx MainCue and Intro often coincide, and rekordbox would
+            // otherwise show two memory points stacked at the same spot. Hot
+            // cues keep their own slots, so they're never deduped here.
+            std::unordered_set<uint32_t> seen_mem_ms;
+            std::vector<Cue> deduped;
+            deduped.reserve(it->second.size());
+            for (Cue& c : it->second) {
+                if (c.kind == CueKind::MemoryCue &&
+                    !seen_mem_ms.insert(c.time_ms).second) {
+                    continue;  // duplicate memory cue at this millisecond
+                }
+                deduped.push_back(std::move(c));
+            }
+            t.cues = std::move(deduped);
         }
     }
 

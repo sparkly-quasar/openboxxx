@@ -157,4 +157,13 @@ Goal: one click in Mixxx turns a failed/odd export into a structured, reproducib
   down from a real export before guessing.
 - PDB empty-leading-page convention + `first_page`/`last_page` semantics — validate on hardware.
 - ANLZ-path hash quirk — confirm whether newer firmware requires a specific folder-path hash.
-- Which rekordbox desktop version(s) to standardize on for verification tier 3.
+- Which rekordbox desktop version(s) to standardize on for verification tier 3. **Finding
+  (2026-08-02):** a real rekordbox-7 stick writes the classic `export.pdb` as an *empty
+  compatibility shell* (0 tracks) and puts the real library in the SQLCipher-encrypted
+  `exportLibrary.db` (OneLibrary). So rb7's device browser may prefer the encrypted DB when
+  present — **use rekordbox 5 (pre-OneLibrary) as the classic-PDB/ANLZ tier-3 target.**
+- **`columns`/`unknown_17`/`unknown_18`/`history` tables (Phase-0 gap, found 2026-08-02):** a
+  genuine `export.pdb` populates `columns` (27 rows — the browse/sort menu categories),
+  `unknown_17` (22), `unknown_18` (17) and `history` (1) *even when the track library is empty*
+  (they're library-independent). Our writer leaves all four empty. Unknown whether CDJs require
+  them or fall back to firmware defaults — populate from a real reference and confirm on hardware.
