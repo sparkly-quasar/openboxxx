@@ -12,10 +12,12 @@
 //   --copy-audio     also copy each track's audio file onto the image
 //   --no-intro-outro don't map Mixxx Intro/Outro cues as memory cues
 //   --limit N        only export the first N tracks (handy for quick tests)
+//   --ids A,B,C      only export these Mixxx track ids (targeted test sets)
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <set>
 #include <string>
 
 #include "openboxxx/exporter.h"
@@ -36,6 +38,7 @@ int main(int argc, char** argv) {
     bool copy_audio = false;
     MixxxReadOptions opts;
     int limit = 0;
+    std::set<uint32_t> only_ids;
 
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
@@ -44,6 +47,16 @@ int main(int argc, char** argv) {
         else if (a == "--copy-audio") copy_audio = true;
         else if (a == "--no-intro-outro") opts.include_intro_outro = false;
         else if (a == "--limit" && i + 1 < argc) limit = std::atoi(argv[++i]);
+        else if (a == "--ids" && i + 1 < argc) {
+            const std::string csv = argv[++i];
+            for (std::size_t p = 0; p < csv.size();) {
+                std::size_t c = csv.find(',', p);
+                if (c == std::string::npos) c = csv.size();
+                const std::string tok = csv.substr(p, c - p);
+                if (!tok.empty()) only_ids.insert(uint32_t(std::atoi(tok.c_str())));
+                p = c + 1;
+            }
+        }
         else { std::fprintf(stderr, "unknown/again arg: %s\n", a.c_str()); }
     }
     if (db_path.empty()) {
@@ -62,18 +75,30 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (limit > 0 && int(model.tracks.size()) > limit) {
-        model.tracks.resize(size_t(limit));
-        // Drop playlist references to trimmed tracks so the PDB stays consistent.
-        std::vector<uint32_t> kept;
-        for (const Track& t : model.tracks) kept.push_back(t.id);
+    // Repair playlist references after any track-set trimming so the PDB stays
+    // consistent (only reference tracks that survived).
+    auto repairPlaylists = [&]() {
+        std::set<uint32_t> kept;
+        for (const Track& t : model.tracks) kept.insert(t.id);
         for (Playlist& pl : model.playlists) {
             std::vector<uint32_t> filtered;
             for (uint32_t id : pl.track_ids)
-                for (uint32_t k : kept)
-                    if (id == k) { filtered.push_back(id); break; }
+                if (kept.count(id)) filtered.push_back(id);
             pl.track_ids = std::move(filtered);
         }
+    };
+
+    if (!only_ids.empty()) {
+        std::vector<Track> picked;
+        for (Track& t : model.tracks)
+            if (only_ids.count(t.id)) picked.push_back(std::move(t));
+        model.tracks = std::move(picked);
+        repairPlaylists();
+    }
+
+    if (limit > 0 && int(model.tracks.size()) > limit) {
+        model.tracks.resize(size_t(limit));
+        repairPlaylists();
     }
 
     std::printf("Read %s\n", db_path.c_str());
