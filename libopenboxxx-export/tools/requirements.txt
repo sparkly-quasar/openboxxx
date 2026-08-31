@@ -1,3 +1,7 @@
 # Dev/CI dependencies for the verification tooling (not needed to build the lib).
 # Tier-2 ANLZ oracle: an independent real-rekordbox-format parser (MIT).
 pyrekordbox
+# Tier-1 PDB round-trip: runtime for the parser generated from the crate-digger
+# .ksy at test time (the kaitai-struct-compiler itself is a separate,
+# non-pip install). Without this the pdb_roundtrip test silently skips.
+kaitaistruct

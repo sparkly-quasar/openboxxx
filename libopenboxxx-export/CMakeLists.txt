@@ -32,25 +32,29 @@ target_link_libraries(openboxxx_export_cli PRIVATE openboxxx_export)
 # Optional: the core writer library has no SQLite dependency, so environments
 # without SQLite still build everything above. When SQLite is present we also
 # build the adapter library + the `openboxxx_from_mixxx` CLI a tester runs.
+# FindSQLite3 names its imported target SQLite::SQLite3 (not SQLite3::SQLite3).
+# Guard on the target as well as the _FOUND variable so a module that reports
+# success without defining it degrades to the skip branch below rather than
+# failing generation for the whole project -- the core writer must stay buildable.
 find_package(SQLite3)
-if(SQLite3_FOUND)
+if(SQLite3_FOUND AND TARGET SQLite::SQLite3)
   add_library(openboxxx_mixxxdb
     src/adapter/mixxxdb_reader.cpp
     src/adapter/mixxx_beats.cpp
   )
   target_include_directories(openboxxx_mixxxdb PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-  target_link_libraries(openboxxx_mixxxdb PUBLIC openboxxx_export SQLite3::SQLite3)
+  target_link_libraries(openboxxx_mixxxdb PUBLIC openboxxx_export SQLite::SQLite3)
   target_compile_options(openboxxx_mixxxdb PRIVATE -Wall -Wextra)
 
   add_executable(openboxxx_from_mixxx tools/openboxxx_from_mixxx.cpp)
   target_link_libraries(openboxxx_from_mixxx PRIVATE openboxxx_mixxxdb)
 
   add_executable(openboxxx_mixxxdb_tests tests/mixxxdb_tests.cpp)
-  target_link_libraries(openboxxx_mixxxdb_tests PRIVATE openboxxx_mixxxdb SQLite3::SQLite3)
+  target_link_libraries(openboxxx_mixxxdb_tests PRIVATE openboxxx_mixxxdb SQLite::SQLite3)
   target_include_directories(openboxxx_mixxxdb_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
   add_test(NAME openboxxx_mixxxdb_tests COMMAND openboxxx_mixxxdb_tests)
 else()
-  message(STATUS "SQLite3 not found; skipping mixxxdb reader adapter + CLI")
+  message(STATUS "SQLite3 not usable; skipping mixxxdb reader adapter + CLI")
 endif()
 
 # --- tests ---
