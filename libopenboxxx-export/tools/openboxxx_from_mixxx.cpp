@@ -5,7 +5,9 @@
 //
 // Usage:
 //   openboxxx_from_mixxx --db PATH [--out DIR] [--copy-audio]
-//                        [--no-intro-outro] [--limit N]
+//                        [--no-intro-outro] [--limit N] [--ids A,B,C]
+//
+// Run with --help for the same list at the terminal.
 //
 //   --db PATH        path to mixxxdb.sqlite (required)
 //   --out DIR        write the PIONEER/ tree under DIR (omit for a dry run)
@@ -25,6 +27,32 @@
 
 using namespace openboxxx;
 namespace fs = std::filesystem;
+
+static void usage(std::FILE* out) {
+    std::fprintf(out,
+"usage: openboxxx_from_mixxx --db PATH [options]\n"
+"\n"
+"Reads a Mixxx library (read-only -- your library is never modified) and writes\n"
+"a rekordbox/CDJ USB image: PIONEER/rekordbox/export.pdb plus per-track ANLZ\n"
+"analysis files.\n"
+"\n"
+"  --db PATH          path to mixxxdb.sqlite (required)\n"
+"  --out DIR          write the USB tree under DIR; omit for a dry run\n"
+"  --copy-audio       also copy the audio files, so the device actually plays\n"
+"  --limit N          export only the first N tracks (handy for a first test)\n"
+"  --ids A,B,C        export only these Mixxx track ids (targeted test sets)\n"
+"  --no-intro-outro   don't map Mixxx Intro/Outro cues as memory cues\n"
+"  -h, --help         show this help\n"
+"\n"
+"Without --out nothing is written: the library is read and the counts reported.\n"
+"\n"
+"Typical mixxxdb.sqlite locations:\n"
+"  Linux     ~/.mixxx/mixxxdb.sqlite\n"
+"  Windows   %%LOCALAPPDATA%%\\Mixxx\\mixxxdb.sqlite\n"
+"  macOS     ~/Library/Application Support/Mixxx/mixxxdb.sqlite\n"
+"  macOS     ~/Library/Containers/org.mixxx.mixxx/Data/Library/\n"
+"  (sandboxed)   Application Support/Mixxx/mixxxdb.sqlite\n");
+}
 
 static void writeFile(const fs::path& dest, const std::vector<uint8_t>& bytes) {
     fs::create_directories(dest.parent_path());
@@ -57,12 +85,16 @@ int main(int argc, char** argv) {
                 p = c + 1;
             }
         }
-        else { std::fprintf(stderr, "unknown/again arg: %s\n", a.c_str()); }
+        else if (a == "--help" || a == "-h") { usage(stdout); return 0; }
+        else {
+            std::fprintf(stderr, "unrecognised argument: %s\n\n", a.c_str());
+            usage(stderr);
+            return 2;
+        }
     }
     if (db_path.empty()) {
-        std::fprintf(stderr,
-                     "usage: openboxxx_from_mixxx --db PATH [--out DIR] "
-                     "[--copy-audio] [--no-intro-outro] [--limit N]\n");
+        std::fprintf(stderr, "error: --db is required\n\n");
+        usage(stderr);
         return 2;
     }
 

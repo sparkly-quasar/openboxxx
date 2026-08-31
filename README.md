@@ -4,6 +4,34 @@ An open-source DJ software effort focused on **making Mixxx a first-class citize
 Pioneer/AlphaTheta CDJ world** — so a DJ can prepare a set in free, open software and walk up
 to any club CDJ with confidence that their playlists, cues, and beatgrids come with them.
 
+---
+
+## 🎧 Got a CDJ? We need you
+
+openboxxx can already write a rekordbox USB stick from a Mixxx library. Every byte it
+writes is checked against two independent real-rekordbox-format parsers. But **nobody
+has confirmed it on physical hardware yet** — and that is the only test that counts.
+
+### ➡️ **[Beta testing guide](docs/beta-testing.md)** — step by step, about 20 minutes, no experience needed
+
+The short version:
+
+1. Format a **spare** USB stick as FAT32.
+2. Install the [beta Mixxx build](https://github.com/sparkly-quasar/openboxxx/releases/tag/v0.1.0-alpha)
+   (macOS / Windows / Linux) — or build the
+   [command-line exporter](docs/beta-testing.md#path-b--export-from-the-command-line)
+   if you'd rather not install a fork.
+3. **Library → Export Library to rekordbox USB**, and say **Yes** to copying audio.
+4. Try it on the player and
+   [tell us what happened](https://github.com/sparkly-quasar/openboxxx/issues/new?template=beta-report.md&labels=beta-report)
+   — **including if it all worked.** We have no hardware results at all yet, so a
+   "CDJ-3000, 20 tracks, everything correct" report is worth as much as a bug.
+
+**Bring your normal USB too, and don't try this first at a paying gig.** Waveforms will
+be blank (not implemented yet); the music still plays.
+
+---
+
 ## The problem we're solving
 
 The single fear that keeps DJs on proprietary rekordbox:
@@ -49,13 +77,14 @@ parser for PDB), and diffed field-for-field against genuine rekordbox ANLZ files
 **Still to confirm — desktop import & hardware.** Exports complete without errors and round-trip
 through the parsers, but haven't yet been confirmed by importing into rekordbox **desktop**
 (verification tier 3) or playing on a physical **CDJ/XDJ** (tier 4). Those are the real proof —
-**CDJ hardware testers are very welcome.**
+**CDJ hardware testers are very welcome:** see the [beta testing guide](docs/beta-testing.md).
 
 See [`libopenboxxx-export/README.md`](libopenboxxx-export/README.md) for the component-by-component
 status table and how to build + run the verification tests.
 
 ## Docs
 
+- [docs/beta-testing.md](docs/beta-testing.md) — **start here if you're testing** — step-by-step export + hardware checklist
 - [docs/legal.md](docs/legal.md) — how we stay within legal bounds (the important one)
 - [docs/architecture.md](docs/architecture.md) — high-level framing & reuse map
 - [docs/export-design.md](docs/export-design.md) — implementation design: phases, MVP scope, verification ladder, in-app bug reporting

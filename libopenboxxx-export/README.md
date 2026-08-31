@@ -6,6 +6,10 @@ no Mixxx dependency** — that keeps the byte-fiddly serialization testable in
 isolation before it's wired into Mixxx (see [../docs/export-design.md](../docs/export-design.md),
 Phase 0).
 
+> **Beta testing rather than developing?** You want
+> [**../docs/beta-testing.md**](../docs/beta-testing.md) — a step-by-step walkthrough of
+> exporting a stick and checking it on a CDJ. This README is the developer reference.
+
 ## Layout
 
 ```
@@ -72,6 +76,7 @@ shared.
 # write the PIONEER/ tree (and optionally copy the audio for a playable stick)
 ./build/openboxxx_from_mixxx --db /path/to/mixxxdb.sqlite --out /Volumes/USB --copy-audio
 
+#   --help             list every flag
 #   --limit N          export only the first N tracks (quick tests)
 #   --ids A,B,C        export only these Mixxx track ids (targeted test sets)
 #   --no-intro-outro   don't map Mixxx Intro/Outro cues as memory cues
