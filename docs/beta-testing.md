@@ -402,6 +402,13 @@ sqlite` on macOS. Without them the reader CLI is never built.
 **Windows/macOS refuses to open the app.**
 Expected — the build isn't code-signed. See [A2](#a2-open-it-despite-the-security-warning).
 
+**The app crashes or won't launch at all (especially on Apple Silicon).**
+That's a *build* problem, not an export problem — please report it as such, and say
+which installer you used. The Apple Silicon `.dmg` is cross-compiled on an Intel CI
+runner and never actually executed there, so it's the least-exercised of the four
+builds. If you're on an M-series Mac and it won't start, the Intel `.dmg` under
+Rosetta is worth a try.
+
 **The export said it worked but the stick is empty.**
 Did you point it at the stick's **root**, and eject properly afterwards?
 
