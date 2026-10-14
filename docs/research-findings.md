@@ -184,6 +184,7 @@ VBR). Waveforms optional (track plays, grids/cues work, only on-screen waveform 
 
 ### B.4 Classic vs OneLibrary encryption
 - **Classic `export.pdb`: UNENCRYPTED.** Plain page file; a writer circumvents nothing. **Target.**
+- *(Superseded 2026-10-14: OneLibrary is now in scope; see [legal.md](legal.md).)*
 - **OneLibrary `exportLibrary.db`: SQLCipher-encrypted** (rekordbox 6.8+). **Out of scope** —
   do not pursue the key. CDJs still read classic `export.pdb`, so targeting classic stays valid.
 

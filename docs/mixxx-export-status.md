@@ -62,6 +62,9 @@ key-in-hand. Revised priority:
 2. **OneLibrary** — pursue ONLY via an official AlphaTheta spec/partnership (#15556 notes they
    "welcome partnership discussions"). Do not ship the extracted SQLCipher key.
 
+> **Superseded 2026-10-14:** OneLibrary is now in scope, using the fixed, already-public passphrase
+> behind a build option, while still pursuing the official spec. See [legal.md](legal.md).
+
 ## What this means for openboxxx — concrete next steps
 
 - [ ] Confirm in-repo: read `lib/rekordbox-metadata/` and the Engine DJ exporter
@@ -71,7 +74,7 @@ key-in-hand. Revised priority:
 - [ ] Build the **round-trip verifier** early — parse our own output with the existing Kaitai
       parsers and diff against a reference rekordbox-generated USB.
 - [ ] Engage issue #12126 / #10321 upstream so the work lands as a contribution, not a fork.
-- [ ] Keep OneLibrary strictly behind "official spec only."
+- [ ] ~~Keep OneLibrary strictly behind "official spec only."~~ Superseded; see [legal.md](legal.md).
 
 ## Sources
 

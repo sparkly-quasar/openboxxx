@@ -101,7 +101,7 @@ struct padding, or `wchar_t` size:
 `PCOB`(memory) + `PCOB`(hot); audio files copied; correct `PIONEER/` layout.
 
 **Out (deferred to Phase 2):** waveforms, `.EXT`/`PCO2` extended cues, `.2EX`, My-Tags
-(`exportExt.pdb`), history playlists, OneLibrary (permanently out — encrypted; see legal.md).
+(`exportExt.pdb`), history playlists, OneLibrary (a later phase since 2026-10-14; see legal.md).
 
 Result: a CDJ browses the library + playlists, and every track plays with a correct beatgrid and
 working hot/memory cues. The on-screen waveform is blank until Phase 2 — the track still plays.

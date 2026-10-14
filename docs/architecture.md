@@ -47,8 +47,9 @@ Mixxx library (tracks + cues + beatgrids + waveforms + crates/playlists)
 2. **OneLibrary / Device Library Plus** — AlphaTheta's own cross-software format (Oct 2025), only
    newest firmware/models: CDJ-3000X, CDJ-3000 (fw 3.30+), XDJ-AZ, OPUS-QUAD, OMNIS-DUO.
    ⚠️ **Legally the harder target, not the easier one:** its `exportLibrary.db` is
-   SQLCipher-encrypted, so writing it means circumventing encryption. Pursue ONLY via an official
-   spec/partnership. See [legal.md](legal.md) and [mixxx-export-status.md](mixxx-export-status.md).
+   SQLCipher-encrypted with a fixed, already-public passphrase. In scope since 2026-10-14, behind a
+   build option; see [legal.md](legal.md) for the approach and the risks. Also the only format the
+   CDJ-3000X, XDJ-AZ, OPUS-QUAD and OMNIS-DUO read.
 
 ## Hardware test matrix (to define next)
 

@@ -426,7 +426,7 @@ Please don't file these — they're on the roadmap, tracked in
 | Extended cues (`.EXT` / `PCO2`) | Cue colours and labels don't carry over |
 | Four PDB tables left empty (`columns`, `unknown_17`, `unknown_18`, `history`) | Unknown — a genuine stick populates them, and this is a plausible cause if browsing misbehaves. **Do tell us if browsing is odd.** |
 | Per-crate export in the Mixxx GUI | Menu exports the whole library; use the CLI's `--limit` / `--ids` |
-| OneLibrary (encrypted, newest players) | Out of scope permanently — see [legal.md](legal.md) |
+| OneLibrary (encrypted, newest players) | Not supported yet, so CDJ-3000X / XDJ-AZ / OPUS-QUAD / OMNIS-DUO won't see the library. Now in scope — see [legal.md](legal.md) |
 
 ---
 
