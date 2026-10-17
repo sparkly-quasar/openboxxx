@@ -103,6 +103,9 @@ that makes writing these files possible and earlier Mixxx→rekordbox efforts.
   against (EPL-1.0, used as a format description, not copied code).
 - [pyrekordbox](https://github.com/dylanljones/pyrekordbox) — Dylan Jones (MIT): ANLZ layouts
   referenced here, and an independent parser the tests use as an oracle.
+- [rbxport](https://github.com/chrisle/rbxport) — Chris Le (GPL-2.0-or-later): measurements of
+  hundreds of rekordbox-written analysis files, which set the ANLZ section order, the `PVBR`
+  table, the cue-list layout and the `PCO2` extended cues written here.
 
 **Prior rekordbox/PDB libraries & exporters:**
 - [rekordcrate](https://github.com/Holzhaus/rekordcrate) — Jan Holthuis (**@Holzhaus**): a Rust
