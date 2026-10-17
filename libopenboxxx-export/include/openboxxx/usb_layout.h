@@ -23,6 +23,9 @@ void assignAnlzPaths(ExportModel& model);
 // Compute the ANLZ path for a single track id (exposed for tests).
 std::string anlzPathForTrack(uint32_t track_id);
 
+// The .EXT beside a .DAT: same folder and name, extension swapped.
+std::string extPathFor(const std::string& dat_path);
+
 }  // namespace openboxxx
 
 #endif  // OPENBOXXX_USB_LAYOUT_H

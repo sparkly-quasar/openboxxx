@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "check.h"
 
+#include <algorithm>
 #include <string>
 
 #include "openboxxx/anlz_writer.h"
@@ -83,6 +84,91 @@ TEST(anlz_container_and_sections) {
     CHECK(len_file == dat.size());
     // First section right after the 28-byte header is PPTH.
     CHECK(dat[28] == 'P' && dat[29] == 'P' && dat[30] == 'T' && dat[31] == 'H');
+    // rekordbox's 16 header bytes after the frame.
+    const uint8_t extra[16] = {0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0};
+    CHECK(std::equal(extra, extra + 16, dat.begin() + 12));
+}
+
+namespace {
+uint32_t be32(const std::vector<uint8_t>& d, std::size_t o) {
+    return (uint32_t(d[o]) << 24) | (uint32_t(d[o + 1]) << 16) | (uint32_t(d[o + 2]) << 8) | d[o + 3];
+}
+uint16_t be16(const std::vector<uint8_t>& d, std::size_t o) {
+    return uint16_t((d[o] << 8) | d[o + 1]);
+}
+// The sections of an ANLZ file, as (fourcc, offset) pairs.
+std::vector<std::pair<std::string, std::size_t>> sections(const std::vector<uint8_t>& d) {
+    std::vector<std::pair<std::string, std::size_t>> out;
+    for (std::size_t o = be32(d, 4); o + 12 <= d.size(); o += be32(d, o + 8)) {
+        out.push_back({std::string(d.begin() + o, d.begin() + o + 4), o});
+    }
+    return out;
+}
+std::string names(const std::vector<std::pair<std::string, std::size_t>>& s) {
+    std::string out;
+    for (const auto& [n, o] : s) out += n + " ";
+    return out;
+}
+Track cuedTrack() {
+    Track t;
+    t.file_path = "/Contents/x.flac";
+    t.cues.push_back({CueKind::HotCue, 3, 4000, std::nullopt, std::nullopt, "D"});
+    t.cues.push_back({CueKind::MemoryCue, -1, 9000, std::nullopt, std::nullopt, ""});
+    t.cues.push_back({CueKind::HotCue, 0, 1000, std::nullopt, std::nullopt, "Intro"});
+    t.cues.push_back({CueKind::Loop, -1, 2000, 6000u, std::nullopt, ""});
+    return t;
+}
+}  // namespace
+
+// --- ANLZ layout as rekordbox writes it ---
+TEST(anlz_dat_sections_in_rekordbox_order) {
+    auto dat = buildAnlzDat(cuedTrack());
+    auto s = sections(dat);
+    CHECK(names(s) == "PPTH PVBR PQTZ PCOB PCOB ");
+    CHECK(be32(dat, s[1].second + 4) == 16);                 // PVBR: 16-byte header...
+    CHECK(be32(dat, s[1].second + 8) == 16 + 401 * 4);       // ...and 401 zero words
+    // First PCOB is the hot list (type 1) with A only: D lives in the .EXT.
+    const std::size_t hot = s[3].second, mem = s[4].second;
+    CHECK(be32(dat, hot + 12) == 1);
+    CHECK(be16(dat, hot + 18) == 1);
+    CHECK(be32(dat, hot + 20) == 0xFFFFFFFFu);
+    CHECK(be32(dat, hot + 24 + 12) == 1);                    // hot cue A
+    // Memory list: the loop at 2 s then the cue at 9 s, chained together.
+    CHECK(be32(dat, mem + 12) == 0);
+    CHECK(be16(dat, mem + 18) == 2);
+    CHECK(be32(dat, mem + 20) == 1);                         // count less one
+    const std::size_t e0 = mem + 24, e1 = e0 + 56;
+    CHECK(be32(dat, e0 + 32) == 2000 && be32(dat, e0 + 36) == 6000 && dat[e0 + 28] == 2);
+    CHECK(be16(dat, e0 + 24) == 0xFFFF && be16(dat, e0 + 26) == 1);
+    CHECK(be16(dat, e1 + 24) == 0 && be16(dat, e1 + 26) == 0xFFFF);
+    CHECK(be32(dat, e0 + 16) == 0);                          // status: not an active loop
+}
+
+TEST(anlz_ext_carries_named_cues) {
+    auto ext = buildAnlzExt(cuedTrack());
+    auto s = sections(ext);
+    CHECK(names(s) == "PPTH PCOB PCOB PCO2 PCO2 ");
+    CHECK(be16(ext, s[1].second + 18) == 1);                 // hot cue D only
+    CHECK(be32(ext, s[1].second + 24 + 12) == 4);
+    CHECK(be16(ext, s[2].second + 18) == 0);                 // empty memory list
+    const std::size_t pco2 = s[3].second;
+    CHECK(be16(ext, pco2 + 16) == 2);                        // A and D
+    const std::size_t a = pco2 + 20;                         // first PCP2: A, "Intro"
+    CHECK(std::string(ext.begin() + a, ext.begin() + a + 4) == "PCP2");
+    CHECK(be32(ext, a + 12) == 1 && be32(ext, a + 20) == 1000);
+    CHECK(be32(ext, a + 40) == 12);                          // "Intro" + NUL, UTF-16
+    CHECK(be16(ext, a + 44) == 'I');
+    CHECK(ext[a + 56] == 43 && ext[a + 57] == 0xFF && ext[a + 59] == 0x17);  // A's red
+}
+
+TEST(anlz_pcp2_matches_rekordbox_entry) {
+    // rbxport's test vector, from a rekordbox export: hot cue A at 83,032 ms.
+    // (Its colour code was 46; this cue has none, so A's default follows.)
+    ByteBuffer b;
+    putPco2(b, {{CueKind::HotCue, 0, 83032, std::nullopt, std::nullopt, ""}}, true);
+    const uint8_t expect[] = {0x50, 0x43, 0x50, 0x32, 0, 0, 0, 0x10, 0, 0, 0, 0x58, 0, 0, 0, 1,
+                              1, 0, 3, 0xe8, 0, 1, 0x44, 0x58, 0xff, 0xff, 0xff, 0xff, 0, 1};
+    CHECK(std::equal(expect, expect + sizeof(expect), b.bytes().begin() + 20));
 }
 
 // --- PDB page framing invariants ---
@@ -100,6 +186,26 @@ TEST(pdb_page_is_4096_and_tracks_rows) {
     // data-page flag at 0x1b; num_row_offsets/num_rows packed 24-bit at 0x18.
     CHECK(bytes[0x1b] == kPageFlagsData);
     CHECK(bytes[0x18] == 2);   // num_row_offsets low byte == 2
+}
+
+TEST(pdb_rows_start_on_four_byte_boundaries) {
+    PdbPage page(PageType::Artists);
+    CHECK(page.tryAddRow(std::vector<uint8_t>(13, 1)));
+    CHECK(page.tryAddRow(std::vector<uint8_t>(7, 2)));
+    auto bytes = page.finalize(1, 0);
+    // Second row's offset (index slot 1, at len_page - 8) is the first's 13 padded to 16.
+    CHECK(bytes[kPageSize - 8] == 16 && bytes[kPageSize - 7] == 0);
+}
+
+TEST(pdb_index_page) {
+    auto page = buildIndexPage(1, PageType::Tracks, {2, 3});
+    CHECK(page[0x1b] == kPageFlagsIndex);
+    CHECK(page[0x0c] == 2);                                  // first data page
+    CHECK(page[0x26] == 2 && page[0x38] == 2);               // two entries
+    CHECK(page[0x3c] == (2 << 3) && page[0x40] == (3 << 3));
+    CHECK(page[0x44] == 0xF8 && page[0x47] == 0x1F);         // the rest unused
+    auto empty = buildIndexPage(5, PageType::Genres, {});
+    CHECK(empty[0x0c] == 0xFF && empty[0x0f] == 0x03);       // no data pages
 }
 
 TEST(pdb_index_bytes_formula) {
@@ -123,17 +229,20 @@ TEST(exporter_produces_pdb_plus_anlz_per_track) {
     Track t; t.id = 0x100; t.file_path = "/Contents/a.flac";
     m.tracks.push_back(t);
     auto image = buildUsbImage(m);
-    // export.pdb + one ANLZ.
-    CHECK(image.files.size() == 2);
+    // export.pdb + the track's .DAT and .EXT.
+    CHECK(image.files.size() == 3);
     CHECK(image.files[0].path == "/PIONEER/rekordbox/export.pdb");
-    // PDB is now real: non-empty and a whole number of 4096-byte pages
-    // (page 0 header + 20 table pages = 21 pages).
+    // A whole number of 4096-byte pages: the header, then per table an index
+    // page and a spare, plus a data page for the two tables with rows (the
+    // track and the colour palette): 1 + 20 * 2 + 2 = 43.
     CHECK(!image.files[0].bytes.empty());
     CHECK(image.files[0].bytes.size() % kPageSize == 0);
-    CHECK(image.files[0].bytes.size() == 21 * kPageSize);
-    // ANLZ path was assigned and matches the track record.
+    CHECK(image.files[0].bytes.size() == 43 * kPageSize);
+    // ANLZ paths were assigned and match the track record.
     CHECK(!m.tracks.empty());
     CHECK(image.files[1].path == anlzPathForTrack(0x100));
+    CHECK(image.files[2].path == extPathFor(anlzPathForTrack(0x100)));
+    CHECK(image.files[2].path.substr(image.files[2].path.size() - 4) == ".EXT");
 }
 
 int main() {

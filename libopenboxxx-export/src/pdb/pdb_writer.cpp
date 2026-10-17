@@ -2,8 +2,11 @@
 #include "openboxxx/pdb_writer.h"
 
 #include <algorithm>
+#include <ctime>
 #include <map>
+#include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "openboxxx/byteio.h"
 #include "openboxxx/device_sql_string.h"
@@ -29,11 +32,18 @@ std::string baseName(const std::string& path) {
 
 // --- row serializers (return the raw row bytes; strings via device_sql_string) ---
 
+// Track string slots (crate-digger's track_row order).
+constexpr int kStrAutoloadHotCues = 7;
+constexpr int kStrDateAdded = 10;
+constexpr int kStrAnalyzePath = 14;
+constexpr int kStrAnalyzeDate = 15;
+
 std::vector<uint8_t> buildTrackRow(const Track& t, uint32_t artist_id, uint32_t album_id,
-                                   uint32_t genre_id, uint32_t key_id, uint8_t color_id) {
+                                   uint32_t genre_id, uint32_t key_id, uint8_t color_id,
+                                   uint16_t index_shift, const std::string& today) {
     ByteBuffer r;
     r.putU16LE(0x24);                 // subtype (0x04 bit -> 16-bit string offsets)
-    r.putU16LE(0);                    // index_shift (rekordbox-internal; neutral 0)
+    r.putU16LE(index_shift);          // steps by 0x20 a row, as in a real export
     r.putU32LE(kTrackBitmask);
     r.putU32LE(uint32_t(t.sample_rate));
     r.putU32LE(0);                    // composer_id
@@ -70,7 +80,10 @@ std::vector<uint8_t> buildTrackRow(const Track& t, uint32_t artist_id, uint32_t 
 
     // Fill the meaningful strings; the rest stay empty (0x03).
     std::string strs[kTrackStringCount];
-    strs[14] = t.analyze_path;
+    strs[kStrAutoloadHotCues] = "ON";   // load hot cues with the track, as rekordbox does
+    strs[kStrDateAdded] = today;
+    strs[kStrAnalyzeDate] = today;
+    strs[kStrAnalyzePath] = t.analyze_path;
     strs[16] = t.comment;
     strs[17] = t.title;
     strs[19] = baseName(t.file_path);
@@ -86,7 +99,7 @@ std::vector<uint8_t> buildTrackRow(const Track& t, uint32_t artist_id, uint32_t 
 std::vector<uint8_t> buildArtistRow(uint32_t id, const std::string& name) {
     ByteBuffer r;
     r.putU16LE(0x60);                 // subtype (near, 8-bit name offset)
-    r.putU16LE(0);                    // index_shift
+    r.putU16LE(uint16_t((id - 1) * 0x20));  // index_shift
     r.putU32LE(id);
     r.putU8(0x03);                    // unknown
     r.putU8(0x0A);                    // ofs_name_near: name starts at row_base+10
@@ -97,7 +110,7 @@ std::vector<uint8_t> buildArtistRow(uint32_t id, const std::string& name) {
 std::vector<uint8_t> buildAlbumRow(uint32_t id, uint32_t artist_id, const std::string& name) {
     ByteBuffer r;
     r.putU16LE(0x80);                 // subtype (near)
-    r.putU16LE(0);                    // index_shift
+    r.putU16LE(uint16_t((id - 1) * 0x20));  // index_shift
     r.putU32LE(0);                    // unknown
     r.putU32LE(artist_id);
     r.putU32LE(id);
@@ -152,9 +165,57 @@ std::vector<uint8_t> buildPlaylistEntryRow(uint32_t entry_index, uint32_t track_
     return r.bytes();
 }
 
-struct PageSpan { uint32_t first; uint32_t last; };
+struct PageSpan { uint32_t first; uint32_t last; uint32_t spare; };
+
+std::string localDate() {
+    const std::time_t now = std::time(nullptr);
+    std::tm tm{};
+#if defined(_WIN32)
+    localtime_s(&tm, &now);
+#else
+    localtime_r(&now, &tm);
+#endif
+    char buf[16];
+    std::strftime(buf, sizeof(buf), "%Y-%m-%d", &tm);
+    return buf;
+}
 
 }  // namespace
+
+std::vector<uint8_t> buildIndexPage(uint32_t page_index, PageType type,
+                                    const std::vector<uint32_t>& data_pages) {
+    if (data_pages.size() > kIndexEntries) {
+        throw std::length_error("too many data pages for one index page");
+    }
+    std::vector<uint8_t> page(kPageSize, 0);
+    auto wU16 = [&](std::size_t o, uint16_t v) {
+        page[o] = uint8_t(v); page[o + 1] = uint8_t(v >> 8);
+    };
+    auto wU32 = [&](std::size_t o, uint32_t v) {
+        page[o] = uint8_t(v); page[o + 1] = uint8_t(v >> 8);
+        page[o + 2] = uint8_t(v >> 16); page[o + 3] = uint8_t(v >> 24);
+    };
+    const uint32_t first = data_pages.empty() ? kNoPage : data_pages.front();
+    const uint16_t n = uint16_t(data_pages.size());
+    wU32(0x04, page_index);
+    wU32(0x08, uint32_t(type));
+    wU32(0x0c, first);
+    page[0x1b] = kPageFlagsIndex;
+    wU16(0x20, 0x1FFF);
+    wU16(0x22, 0x1FFF);
+    wU16(0x24, uint16_t(kIndexEntries));
+    wU16(0x26, n);
+    wU32(0x28, page_index);
+    wU32(0x2c, first);
+    wU32(0x30, kNoPage);
+    wU32(0x34, 0);
+    wU16(0x38, n);
+    wU16(0x3a, 0x1FFF);
+    for (uint32_t i = 0; i < kIndexEntries; ++i) {
+        wU32(0x3c + 4 * i, i < n ? data_pages[i] << 3 : kEmptyIndexEntry);
+    }
+    return page;
+}
 
 uint32_t pdbIndexBytes(uint32_t n) {
     const uint32_t full = n / kRowsPerGroup;
@@ -163,10 +224,12 @@ uint32_t pdbIndexBytes(uint32_t n) {
 }
 
 bool PdbPage::tryAddRow(const std::vector<uint8_t>& row) {
-    const std::size_t new_heap = heap_used_ + row.size();
+    std::vector<uint8_t> padded = row;
+    padded.resize((row.size() + 3) & ~std::size_t(3), 0);   // rows start on 4-byte boundaries
+    const std::size_t new_heap = heap_used_ + padded.size();
     const uint32_t new_index = pdbIndexBytes(uint32_t(rows_.size() + 1));
     if (kPageHeaderSize + new_heap + new_index > kPageSize) return false;
-    rows_.push_back(row);
+    rows_.push_back(std::move(padded));
     heap_used_ = new_heap;
     return true;
 }
@@ -223,7 +286,8 @@ std::vector<uint8_t> PdbPage::finalize(uint32_t page_index, uint32_t next_page_i
     return page;
 }
 
-std::vector<uint8_t> buildExportPdb(const ExportModel& model) {
+std::vector<uint8_t> buildExportPdb(const ExportModel& model, const std::string& today_in) {
+    const std::string today = today_in.empty() ? localDate() : today_in;
     // --- assign lookup ids from unique, non-empty values ---
     std::map<std::string, uint32_t> artist_ids, album_ids, genre_ids, key_ids;
     auto intern = [](std::map<std::string, uint32_t>& m, const std::string& s) -> uint32_t {
@@ -236,13 +300,15 @@ std::vector<uint8_t> buildExportPdb(const ExportModel& model) {
     };
 
     std::vector<std::vector<uint8_t>> track_rows;
+    uint16_t index_shift = 0;
     for (const Track& t : model.tracks) {
         const uint32_t aid = intern(artist_ids, t.artist);
         const uint32_t alb = intern(album_ids, t.album);
         const uint32_t gid = intern(genre_ids, t.genre);
         const uint32_t kid = intern(key_ids, t.key);
         const uint8_t cid = t.color ? rekordboxColorId(*t.color) : 0;
-        track_rows.push_back(buildTrackRow(t, aid, alb, gid, kid, cid));
+        track_rows.push_back(buildTrackRow(t, aid, alb, gid, kid, cid, index_shift, today));
+        index_shift = uint16_t(index_shift + 0x20);
     }
 
     // Colours: the fixed 8-entry rekordbox palette (ids 1..8), always emitted so
@@ -322,28 +388,33 @@ std::vector<uint8_t> buildExportPdb(const ExportModel& model) {
         {PageType::History, &empty},
     };
 
+    // Each table as a real rekordbox export lays it out: an index page
+    // listing the table's data pages, the data pages chained together, then a
+    // spare "empty candidate" page (blank) that the last data page points at
+    // and the file header names. A table with no rows is its index page alone.
     std::vector<std::vector<uint8_t>> body_pages;  // pages 1..N
     std::vector<PageSpan> spans;
     uint32_t next_index = 1;
     for (const Tbl& tb : tables) {
-        // Chunk rows into PdbPages (at least one page, even if empty).
         std::vector<PdbPage> chunk;
-        chunk.emplace_back(tb.type);
         for (const auto& row : *tb.rows) {
-            if (!chunk.back().tryAddRow(row)) {
+            if (chunk.empty() || !chunk.back().tryAddRow(row)) {
                 chunk.emplace_back(tb.type);
                 chunk.back().tryAddRow(row);  // a single row always fits an empty page
             }
         }
-        const uint32_t first = next_index;
-        const uint32_t last = next_index + uint32_t(chunk.size()) - 1;
+        const uint32_t index_page = next_index;
+        std::vector<uint32_t> data_pages;
+        for (std::size_t i = 0; i < chunk.size(); ++i) data_pages.push_back(index_page + 1 + uint32_t(i));
+        const uint32_t spare = index_page + 1 + uint32_t(chunk.size());
+        body_pages.push_back(buildIndexPage(index_page, tb.type, data_pages));
         for (std::size_t i = 0; i < chunk.size(); ++i) {
-            const uint32_t idx = first + uint32_t(i);
-            const uint32_t next = (idx == last) ? 0 : idx + 1;
-            body_pages.push_back(chunk[i].finalize(idx, next));
+            const uint32_t next = i + 1 < chunk.size() ? data_pages[i + 1] : spare;
+            body_pages.push_back(chunk[i].finalize(data_pages[i], next));
         }
-        spans.push_back({first, last});
-        next_index = last + 1;
+        body_pages.push_back(std::vector<uint8_t>(kPageSize, 0));   // the empty candidate
+        spans.push_back({index_page, data_pages.empty() ? index_page : data_pages.back(), spare});
+        next_index = spare + 1;
     }
 
     const uint32_t total_pages = next_index;  // page 0 header + body pages
@@ -359,7 +430,7 @@ std::vector<uint8_t> buildExportPdb(const ExportModel& model) {
     hdr.putU32LE(0);                       // 4-byte gap
     for (std::size_t i = 0; i < tables.size(); ++i) {
         hdr.putU32LE(uint32_t(tables[i].type));
-        hdr.putU32LE(0);                   // empty_candidate (TODO: real spare page)
+        hdr.putU32LE(spans[i].spare);      // empty_candidate
         hdr.putU32LE(spans[i].first);
         hdr.putU32LE(spans[i].last);
     }

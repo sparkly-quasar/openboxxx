@@ -96,8 +96,11 @@ fractional *stereo samples*, beatgrid first-beat is in *frames*, colours are
 | `device_sql_string` encoder | ✅ implemented + tested |
 | `mapping` colour/rating | ✅ implemented + tested |
 | ANLZ container + PPTH + PQTZ | ✅ implemented; validated via `anlz_oracle` |
-| ANLZ PCOB / PCPT cue entries | ✅ layout validated via `anlz_oracle` (cue ordering TODO) |
-| PDB page allocator (`PdbPage`) | ✅ framing validated via `pdb_roundtrip` |
+| ANLZ PMAI header bytes + `PVBR` | ✅ as rekordbox writes them; rekordbox rejects a `.DAT` without `PVBR` |
+| ANLZ PCOB / PCPT cue entries | ✅ rekordbox's shape: hot list (A–C) first, memory cues chained, its header words |
+| ANLZ `.EXT` + PCO2 / PCP2 | ✅ every cue with its label and colour (CDJ palette); hot cues D–H |
+| PDB page allocator (`PdbPage`) | ✅ framing validated via `pdb_roundtrip`; rows 4-byte aligned |
+| PDB index pages + empty candidates | ✅ each table starts on an index page; chains end on a spare page |
 | PDB tracks + lookups + playlists (`buildExportPdb`) | ✅ round-trips via `pdb_roundtrip` |
 | PDB full 20-table set + colours palette | ✅ emitted; round-trips (colour_id resolves) |
 | `verify` round-trip (native C++) | ⛔ TODO — port the read-back into the lib for in-app use |
@@ -126,7 +129,11 @@ versions, and add artwork. ANLZ Phase-2 (cosmetic): `vbr`, `wf_preview`,
 | Import test in rekordbox desktop (tier 3) | ⛔ pending — not yet confirmed |
 | Physical CDJ/XDJ hardware (tier 4) | ⛔ pending — the real proof; testers welcome |
 
-Known minor deviation (not yet changed): rekordbox writes the hot-cue `PCOB`
-before the memory `PCOB`; we emit memory first. Readers key off each list's
-`cue_type` field, not position, so this is cosmetic — left as-is until a
-populated real reference confirms the convention.
+The ANLZ section order, header bytes, `PVBR`, cue-list shapes and `PCO2`
+follow [rbxport](https://github.com/chrisle/rbxport) (GPL-2.0-or-later), which
+measured them on hundreds of files rekordbox wrote; the PDB index pages,
+empty candidates, row alignment, `index_shift` and track strings were found by
+comparing page by page with a real rekordbox export in
+[Sortero](https://github.com/sparkly-quasar/sortero), whose Python port of this
+writer they came back from. (The hot-cue `PCOB` now comes before the memory one,
+as rekordbox writes it.)

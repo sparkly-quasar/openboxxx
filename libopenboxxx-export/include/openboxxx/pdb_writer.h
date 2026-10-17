@@ -10,6 +10,12 @@
 //                   at base-(6+2*i); present flags at base-4).
 //   * buildExportPdb -- file header + table-pointer array + per-table page chains.
 //
+// Each table starts with an index page and its chain ends on a blank "empty
+// candidate" page; rows are 4-byte aligned and index_shift steps by 0x20 --
+// all as the real export in sortero's tests/fixtures has it (compared page by
+// page in sparkly-quasar/sortero's gig/devicesql.py, from which this was
+// back-ported).
+//
 // Observed constants are copied from a real (rekordbox 5/6) export and may be
 // version-sensitive; see docs/export-design.md open questions. Row-level fields
 // that only rekordbox itself consumes (index_shift, the track_row "magic" u-
@@ -19,6 +25,7 @@
 #define OPENBOXXX_PDB_WRITER_H
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "openboxxx/model.h"
@@ -29,6 +36,10 @@ constexpr uint32_t kPageSize = 4096;
 constexpr uint32_t kPageHeaderSize = 0x28;  // heap starts here (== heap_pos)
 constexpr uint32_t kRowsPerGroup = 16;
 constexpr uint8_t kPageFlagsData = 0x34;    // is_data_page == (flags & 0x40)==0
+constexpr uint8_t kPageFlagsIndex = 0x64;   // the page a table starts with
+constexpr uint32_t kIndexEntries = 1004;    // data pages one index page can list
+constexpr uint32_t kNoPage = 0x03FFFFFF;
+constexpr uint32_t kEmptyIndexEntry = 0x1FFFFFF8;
 
 // DeviceSQL page type ids. Full standard set rekordbox emits (values per the
 // crate-digger page_type enum); we populate some and emit the rest empty.
@@ -63,9 +74,15 @@ private:
     std::vector<std::vector<uint8_t>> rows_;
 };
 
+// The index page a table starts with: which pages hold its rows (data page
+// number << 3 per entry, 0x1FFFFFF8 for the unused ones), as a real export has.
+std::vector<uint8_t> buildIndexPage(uint32_t page_index, PageType type,
+                                    const std::vector<uint32_t>& data_pages);
+
 // Turn an ExportModel into export.pdb bytes: tracks + referenced lookup tables
-// (artists/albums/genres/keys) + playlist_tree/playlist_entries.
-std::vector<uint8_t> buildExportPdb(const ExportModel& model);
+// (artists/albums/genres/keys) + playlist_tree/playlist_entries. `today`
+// (YYYY-MM-DD) is the tracks' date added and analysed; empty means today.
+std::vector<uint8_t> buildExportPdb(const ExportModel& model, const std::string& today = "");
 
 }  // namespace openboxxx
 

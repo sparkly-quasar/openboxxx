@@ -33,8 +33,11 @@ class Checker:
 
 
 def rows(db, type_name):
+    want = type_name.split(".")[-1]
     for t in db.tables:
-        if str(t.type) != type_name:
+        # Older Kaitai runtimes print the enum as "PageType.tracks"; 0.11's
+        # IntEnum prints the number, so compare by name.
+        if getattr(t.type, "name", str(t.type).split(".")[-1]) != want:
             continue
         ref = t.first_page
         last = t.last_page.index

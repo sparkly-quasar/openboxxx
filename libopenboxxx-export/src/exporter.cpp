@@ -18,6 +18,7 @@ UsbImage buildUsbImage(ExportModel model) {
     // Per-track analysis files.
     for (const Track& t : model.tracks) {
         image.files.push_back({t.analyze_path, buildAnlzDat(t)});
+        image.files.push_back({extPathFor(t.analyze_path), buildAnlzExt(t)});
     }
 
     return image;

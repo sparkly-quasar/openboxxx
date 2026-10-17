@@ -16,6 +16,11 @@ std::string anlzPathForTrack(uint32_t track_id) {
     return std::string(buf);
 }
 
+std::string extPathFor(const std::string& dat_path) {
+    const auto dot = dat_path.find_last_of('.');
+    return (dot == std::string::npos ? dat_path : dat_path.substr(0, dot)) + ".EXT";
+}
+
 void assignAnlzPaths(ExportModel& model) {
     for (Track& t : model.tracks) {
         t.analyze_path = anlzPathForTrack(t.id);
