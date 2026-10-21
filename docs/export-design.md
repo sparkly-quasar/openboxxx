@@ -162,7 +162,11 @@ Goal: one click in Mixxx turns a failed/odd export into a structured, reproducib
 
 - The `track_row` "always X" magic constants + `bitmask` semantics (research-findings §B.6) — pin
   down from a real export before guessing.
-- PDB empty-leading-page convention + `first_page`/`last_page` semantics — validate on hardware.
+- PDB empty-leading-page convention + `first_page`/`last_page` semantics. **Settled
+  (2026-10-21)** from a real export (`tests/fixtures/rekordcrate-demo`): each table is an index
+  page (flags 0x64), its data pages, then a blank spare page the header names as
+  `empty_candidate`; an empty table is the index page alone, leading on to its spare. The writer
+  now does this, and a test compares it with the real export. Still to confirm on hardware.
 - ANLZ-path hash quirk — confirm whether newer firmware requires a specific folder-path hash.
 - Which rekordbox desktop version(s) to standardize on for verification tier 3. **Finding
   (2026-08-02):** a real rekordbox-7 stick writes the classic `export.pdb` as an *empty
@@ -172,5 +176,11 @@ Goal: one click in Mixxx turns a failed/odd export into a structured, reproducib
 - **`columns`/`unknown_17`/`unknown_18`/`history` tables (Phase-0 gap, found 2026-08-02):** a
   genuine `export.pdb` populates `columns` (27 rows — the browse/sort menu categories),
   `unknown_17` (22), `unknown_18` (17) and `history` (1) *even when the track library is empty*
-  (they're library-independent). Our writer leaves all four empty. Unknown whether CDJs require
-  them or fall back to firmware defaults — populate from a real reference and confirm on hardware.
+  (they're library-independent). **Answered for the first three (2026-10-21):** players need
+  them. Sortero, which ports this writer, wrote all three empty, and an XDJ-RX2 (firmware 1.43)
+  mounted its stick but showed none of the tracks; its plain-folder backup stick played. The
+  writer now copies the three tables from the real export in `tests/fixtures`, and a test checks
+  the pages match it byte for byte. `columns` is identical in every rekordbox export;
+  `unknown_17`/`unknown_18` follow rekordbox's menu preferences, so they're the demo export's.
+  Not yet confirmed on that XDJ-RX2. **`history` is still empty**: rekordbox writes one row (an
+  export date and "1000") whose fields aren't understood yet.

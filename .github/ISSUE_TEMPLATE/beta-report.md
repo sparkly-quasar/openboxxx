@@ -50,6 +50,11 @@ including when everything worked.
 
 Path B: paste the terminal output (the dry-run counts especially).
 Path A: a screenshot of any "Export Failed" dialog.
+
+If the player shows nothing: a zip of the stick's PIONEER folder after the player
+has read it (no music), and if you have rekordbox, the PIONEER folder of a stick
+rekordbox exported the same tracks to. They list your track titles and paths;
+say if you'd rather not post them here. See "Reporting" in the guide.
 -->
 
 <!-- Blank waveforms and missing artwork are known and expected — see the

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "check.h"
 
+#include <fstream>
+#include <iterator>
 #include <string>
 
 #include "openboxxx/anlz_writer.h"
@@ -117,6 +119,92 @@ TEST(pdb_page_rejects_overflow) {
     CHECK(page.rowCount() == 0);
 }
 
+// --- laid out like a real rekordbox export (tests/fixtures/rekordcrate-demo) ---
+static std::vector<uint8_t> readFixture(const char* name) {
+    std::ifstream f(std::string(OPENBOXXX_FIXTURES) + "/" + name, std::ios::binary);
+    return std::vector<uint8_t>(std::istreambuf_iterator<char>(f), {});
+}
+
+static uint32_t u32At(const std::vector<uint8_t>& d, std::size_t o) {
+    return uint32_t(d[o]) | uint32_t(d[o + 1]) << 8 | uint32_t(d[o + 2]) << 16 |
+           uint32_t(d[o + 3]) << 24;
+}
+
+// A table's (empty_candidate, first page, last page) from the file header.
+struct Span { uint32_t spare, first, last; };
+static Span tableSpan(const std::vector<uint8_t>& d, PageType type) {
+    const std::size_t o = 0x1C + 16 * std::size_t(type);
+    CHECK(u32At(d, o) == uint32_t(type));
+    return {u32At(d, o + 4), u32At(d, o + 8), u32At(d, o + 12)};
+}
+
+static ExportModel oneTrack() {
+    ExportModel m;
+    Track t; t.id = 1; t.title = "T"; t.file_path = "/Contents/A/B/t.mp3";
+    m.tracks.push_back(t);
+    return m;
+}
+
+TEST(pdb_browse_menu_is_rekordboxs) {
+    // Without these tables a player has no categories to browse by, and an
+    // XDJ-RX2 showed none of the tracks on a stick written without them.
+    const std::vector<uint8_t> real = readFixture("rekordcrate-demo/export.pdb");
+    CHECK(real.size() > 40 * kPageSize);
+    if (real.size() <= 40 * kPageSize) return;
+    const std::vector<uint8_t> ours = buildExportPdb(oneTrack());
+    for (PageType type : {PageType::Columns, PageType::Unknown17, PageType::Unknown18}) {
+        const Span r = tableSpan(real, type), o = tableSpan(ours, type);
+        CHECK(r.last == r.first + 1);    // an index page, then one of rows
+        CHECK(o.last == o.first + 1);
+        // The rows, their index at the end of the page, and the counts and flags
+        // in its header; not the page numbers or edit sequence.
+        CHECK(std::equal(ours.begin() + o.last * kPageSize + 0x18,
+                         ours.begin() + (o.last + 1) * kPageSize,
+                         real.begin() + r.last * kPageSize + 0x18));
+    }
+}
+
+TEST(pdb_tables_start_on_an_index_page_and_end_on_a_spare) {
+    const std::vector<uint8_t> real = readFixture("rekordcrate-demo/export.pdb");
+    const std::vector<uint8_t> ours = buildExportPdb(oneTrack());
+    for (const std::vector<uint8_t>* d : {&real, &ours}) {
+        if (d->size() < kPageSize) { CHECK(false); continue; }
+        int empty = 0;
+        for (uint32_t t = 0; t < 20; ++t) {
+            const Span s = tableSpan(*d, PageType(t));
+            CHECK((*d)[s.first * kPageSize + 0x1b] == kPageFlagsIndex);
+            // the chain ends on the spare: an empty table's index page leads
+            // straight to it, otherwise the last data page does
+            CHECK(u32At(*d, s.last * kPageSize + 0x0c) == s.spare);
+            if (s.first == s.last) ++empty;
+        }
+        CHECK(empty > 0);
+    }
+}
+
+TEST(pdb_file_header_field_0x10_is_rekordboxs) {
+    const std::vector<uint8_t> real = readFixture("rekordcrate-demo/export.pdb");
+    const std::vector<uint8_t> ours = buildExportPdb(oneTrack());
+    CHECK(real.size() > 0x14 && u32At(real, 0x10) == 5);
+    CHECK(u32At(ours, 0x10) == 5);
+}
+
+TEST(pdb_fresh_pages_look_like_rekordboxs_fresh_pages) {
+    // In real exports a page no row was ever deleted from is flagged 0x24 and
+    // counts its rows as one transaction, in its header and per row group.
+    PdbPage page(PageType::Genres);
+    for (uint32_t i = 1; i <= 3; ++i) {
+        ByteBuffer r; r.putU32LE(i); putDeviceSqlString(r, "G");
+        CHECK(page.tryAddRow(r.bytes()));
+    }
+    const auto bytes = page.finalize(5, 6);
+    CHECK(bytes[0x1b] == 0x24);
+    CHECK(bytes[0x20] == 3 && bytes[0x21] == 0);
+    CHECK(bytes[kPageSize - 4] == 0x07 && bytes[kPageSize - 2] == 0x07);
+    // rows start on 4-byte boundaries: 6-byte rows take 8
+    CHECK(bytes[kPageSize - 6] == 0 && bytes[kPageSize - 8] == 8);
+}
+
 // --- exporter end-to-end (pipeline compiles + links files) ---
 TEST(exporter_produces_pdb_plus_anlz_per_track) {
     ExportModel m;
@@ -126,11 +214,12 @@ TEST(exporter_produces_pdb_plus_anlz_per_track) {
     // export.pdb + one ANLZ.
     CHECK(image.files.size() == 2);
     CHECK(image.files[0].path == "/PIONEER/rekordbox/export.pdb");
-    // PDB is now real: non-empty and a whole number of 4096-byte pages
-    // (page 0 header + 20 table pages = 21 pages).
+    // PDB is now real: non-empty and a whole number of 4096-byte pages: page 0
+    // header + an index page and a spare page per table (20 x 2) + data pages
+    // for the tracks, colours and the three browse-menu tables = 46 pages.
     CHECK(!image.files[0].bytes.empty());
     CHECK(image.files[0].bytes.size() % kPageSize == 0);
-    CHECK(image.files[0].bytes.size() == 21 * kPageSize);
+    CHECK(image.files[0].bytes.size() == 46 * kPageSize);
     // ANLZ path was assigned and matches the track record.
     CHECK(!m.tracks.empty());
     CHECK(image.files[1].path == anlzPathForTrack(0x100));

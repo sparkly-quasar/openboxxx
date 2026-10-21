@@ -29,11 +29,15 @@ std::string baseName(const std::string& path) {
 
 // --- row serializers (return the raw row bytes; strings via device_sql_string) ---
 
+// rekordbox's index_shift steps by 0x20 a row in each table.
+uint16_t indexShift(std::size_t row) { return uint16_t(row * 0x20); }
+
 std::vector<uint8_t> buildTrackRow(const Track& t, uint32_t artist_id, uint32_t album_id,
-                                   uint32_t genre_id, uint32_t key_id, uint8_t color_id) {
+                                   uint32_t genre_id, uint32_t key_id, uint8_t color_id,
+                                   uint16_t index_shift) {
     ByteBuffer r;
     r.putU16LE(0x24);                 // subtype (0x04 bit -> 16-bit string offsets)
-    r.putU16LE(0);                    // index_shift (rekordbox-internal; neutral 0)
+    r.putU16LE(index_shift);
     r.putU32LE(kTrackBitmask);
     r.putU32LE(uint32_t(t.sample_rate));
     r.putU32LE(0);                    // composer_id
@@ -86,7 +90,7 @@ std::vector<uint8_t> buildTrackRow(const Track& t, uint32_t artist_id, uint32_t 
 std::vector<uint8_t> buildArtistRow(uint32_t id, const std::string& name) {
     ByteBuffer r;
     r.putU16LE(0x60);                 // subtype (near, 8-bit name offset)
-    r.putU16LE(0);                    // index_shift
+    r.putU16LE(indexShift(id - 1));   // ids run 1, 2, 3... in row order
     r.putU32LE(id);
     r.putU8(0x03);                    // unknown
     r.putU8(0x0A);                    // ofs_name_near: name starts at row_base+10
@@ -97,7 +101,7 @@ std::vector<uint8_t> buildArtistRow(uint32_t id, const std::string& name) {
 std::vector<uint8_t> buildAlbumRow(uint32_t id, uint32_t artist_id, const std::string& name) {
     ByteBuffer r;
     r.putU16LE(0x80);                 // subtype (near)
-    r.putU16LE(0);                    // index_shift
+    r.putU16LE(indexShift(id - 1));   // ids run 1, 2, 3... in row order
     r.putU32LE(0);                    // unknown
     r.putU32LE(artist_id);
     r.putU32LE(id);
@@ -152,7 +156,57 @@ std::vector<uint8_t> buildPlaylistEntryRow(uint32_t entry_index, uint32_t track_
     return r.bytes();
 }
 
-struct PageSpan { uint32_t first; uint32_t last; };
+// The browse menu, from rekordbox's export of its demo tracks
+// (tests/fixtures/rekordcrate-demo). Columns: the categories a player can
+// browse by, the same in every rekordbox export.
+struct ColumnDef { uint16_t id; uint16_t field; const char* name; };
+const ColumnDef kMenuColumns[] = {
+    {1, 0x80, "GENRE"}, {2, 0x81, "ARTIST"}, {3, 0x82, "ALBUM"}, {4, 0x83, "TRACK"},
+    {5, 0x85, "BPM"}, {6, 0x86, "RATING"}, {7, 0x87, "YEAR"}, {8, 0x88, "REMIXER"},
+    {9, 0x89, "LABEL"}, {10, 0x8A, "ORIGINAL ARTIST"}, {11, 0x8B, "KEY"},
+    {12, 0x8D, "CUE"}, {13, 0x8E, "COLOR"}, {14, 0x92, "TIME"}, {15, 0x93, "BITRATE"},
+    {16, 0x94, "FILE NAME"}, {17, 0x84, "PLAYLIST"}, {18, 0x98, "HOT CUE BANK"},
+    {19, 0x95, "HISTORY"}, {20, 0x91, "SEARCH"}, {21, 0x96, "COMMENTS"},
+    {22, 0x8C, "DATE ADDED"}, {23, 0x97, "DJ PLAY COUNT"}, {24, 0x90, "FOLDER"},
+    {25, 0xA1, "DEFAULT"}, {26, 0xA2, "ALPHABET"}, {27, 0xAA, "MATCHING"},
+};
+// Unknown17 and Unknown18: which categories the menu shows and in what order.
+// rekordbox's Preferences can change these; these are its demo export's.
+const uint16_t kMenu17[][4] = {
+    {0x01, 0x01, 0x163, 0x00}, {0x05, 0x06, 0x105, 0x00}, {0x06, 0x07, 0x163, 0x00},
+    {0x07, 0x08, 0x163, 0x00}, {0x08, 0x09, 0x163, 0x00}, {0x09, 0x0a, 0x163, 0x00},
+    {0x0a, 0x0b, 0x163, 0x00}, {0x0d, 0x0f, 0x163, 0x00}, {0x0e, 0x13, 0x104, 0x00},
+    {0x0f, 0x14, 0x106, 0x00}, {0x10, 0x15, 0x163, 0x00}, {0x12, 0x17, 0x163, 0x00},
+    {0x02, 0x02, 0x02, 0x01}, {0x03, 0x03, 0x03, 0x02}, {0x04, 0x04, 0x01, 0x03},
+    {0x0b, 0x0c, 0x63, 0x04}, {0x11, 0x05, 0x63, 0x05}, {0x13, 0x16, 0x63, 0x06},
+    {0x14, 0x12, 0x63, 0x07}, {0x1b, 0x1a, 0x263, 0x08}, {0x18, 0x11, 0x63, 0x09},
+    {0x16, 0x1b, 0x63, 0x0a},
+};
+const uint16_t kMenu18[][4] = {
+    {0x01, 0x06, 0x01, 0x00}, {0x15, 0x07, 0x01, 0x00}, {0x0e, 0x08, 0x01, 0x00},
+    {0x08, 0x09, 0x01, 0x00}, {0x09, 0x0a, 0x01, 0x00}, {0x0a, 0x0b, 0x01, 0x00},
+    {0x0f, 0x0d, 0x01, 0x00}, {0x0d, 0x0f, 0x01, 0x00}, {0x17, 0x10, 0x01, 0x00},
+    {0x16, 0x11, 0x01, 0x00}, {0x19, 0x00, 0x100, 0x00}, {0x1a, 0x01, 0x200, 0x00},
+    {0x02, 0x02, 0x300, 0x00}, {0x03, 0x03, 0x400, 0x00}, {0x05, 0x04, 0x500, 0x00},
+    {0x06, 0x05, 0x600, 0x00}, {0x0b, 0x0c, 0x700, 0x00},
+};
+
+std::vector<uint8_t> buildColumnRow(const ColumnDef& c) {
+    ByteBuffer r;
+    r.putU16LE(c.id);
+    r.putU16LE(c.field);
+    // The name is marked off by U+FFFA and U+FFFB, which also makes it UTF-16.
+    putDeviceSqlString(r, std::string("\xEF\xBF\xBA") + c.name + "\xEF\xBF\xBB");
+    return r.bytes();
+}
+
+std::vector<uint8_t> buildMenuRow(const uint16_t (&values)[4]) {
+    ByteBuffer r;
+    for (uint16_t v : values) r.putU16LE(v);
+    return r.bytes();
+}
+
+struct PageSpan { uint32_t spare; uint32_t first; uint32_t last; };
 
 }  // namespace
 
@@ -163,12 +217,47 @@ uint32_t pdbIndexBytes(uint32_t n) {
 }
 
 bool PdbPage::tryAddRow(const std::vector<uint8_t>& row) {
-    const std::size_t new_heap = heap_used_ + row.size();
+    std::vector<uint8_t> padded = row;          // rows start on 4-byte boundaries
+    padded.resize((row.size() + 3) & ~std::size_t(3), 0);
+    const std::size_t new_heap = heap_used_ + padded.size();
     const uint32_t new_index = pdbIndexBytes(uint32_t(rows_.size() + 1));
     if (kPageHeaderSize + new_heap + new_index > kPageSize) return false;
-    rows_.push_back(row);
+    rows_.push_back(std::move(padded));
     heap_used_ = new_heap;
     return true;
+}
+
+std::vector<uint8_t> buildIndexPage(uint32_t page_index, PageType type,
+                                    const std::vector<uint32_t>& data_pages, uint32_t spare) {
+    std::vector<uint8_t> page(kPageSize, 0);
+    const uint32_t first = data_pages.empty() ? kNoPage : data_pages.front();
+    const uint32_t n = uint32_t(data_pages.size());
+    auto put = [&](std::size_t o, const ByteBuffer& b) {
+        std::copy(b.bytes().begin(), b.bytes().end(), page.begin() + o);
+    };
+    ByteBuffer head;
+    head.putU32LE(page_index);
+    head.putU32LE(uint32_t(type));
+    head.putU32LE(data_pages.empty() ? spare : first);
+    put(0x04, head);
+    page[0x1b] = kPageFlagsIndex;
+    ByteBuffer counts;
+    counts.putU16LE(0x1FFF);
+    counts.putU16LE(0x1FFF);
+    counts.putU16LE(uint16_t(kIndexEntries));
+    counts.putU16LE(uint16_t(n));
+    put(0x20, counts);
+    ByteBuffer body;
+    body.putU32LE(page_index);
+    body.putU32LE(first);
+    body.putU32LE(kNoPage);
+    body.putU32LE(0);
+    body.putU16LE(uint16_t(n));
+    body.putU16LE(0x1FFF);
+    for (uint32_t p : data_pages) body.putU32LE(p << 3);
+    for (uint32_t i = n; i < kIndexEntries; ++i) body.putU32LE(kEmptyIndexEntry);
+    put(kPageHeaderSize, body);
+    return page;
 }
 
 std::vector<uint8_t> PdbPage::finalize(uint32_t page_index, uint32_t next_page_index) const {
@@ -203,6 +292,7 @@ std::vector<uint8_t> PdbPage::finalize(uint32_t page_index, uint32_t next_page_i
         const uint32_t cnt = std::min<uint32_t>(kRowsPerGroup, n - g * kRowsPerGroup);
         const uint16_t present = cnt >= 16 ? 0xFFFF : uint16_t((1u << cnt) - 1);
         wU16((kPageSize - g * 36) - 4, present);
+        wU16((kPageSize - g * 36) - 2, present);   // all came in the page's transaction
     }
 
     // Header.
@@ -219,7 +309,8 @@ std::vector<uint8_t> PdbPage::finalize(uint32_t page_index, uint32_t next_page_i
     const uint32_t free = kPageSize - kPageHeaderSize - used - pdbIndexBytes(n);
     wU16(0x1c, uint16_t(free));
     wU16(0x1e, uint16_t(used));
-    // 0x20..0x27 transaction + unknown fields left 0.
+    wU16(0x20, uint16_t(n));          // every row added in one transaction
+    // 0x22..0x27 transaction index + unknown fields left 0.
     return page;
 }
 
@@ -237,12 +328,13 @@ std::vector<uint8_t> buildExportPdb(const ExportModel& model) {
 
     std::vector<std::vector<uint8_t>> track_rows;
     for (const Track& t : model.tracks) {
+        const uint16_t shift = indexShift(track_rows.size());
         const uint32_t aid = intern(artist_ids, t.artist);
         const uint32_t alb = intern(album_ids, t.album);
         const uint32_t gid = intern(genre_ids, t.genre);
         const uint32_t kid = intern(key_ids, t.key);
         const uint8_t cid = t.color ? rekordboxColorId(*t.color) : 0;
-        track_rows.push_back(buildTrackRow(t, aid, alb, gid, kid, cid));
+        track_rows.push_back(buildTrackRow(t, aid, alb, gid, kid, cid, shift));
     }
 
     // Colours: the fixed 8-entry rekordbox palette (ids 1..8), always emitted so
@@ -294,9 +386,15 @@ std::vector<uint8_t> buildExportPdb(const ExportModel& model) {
             pl_entry_rows.push_back(buildPlaylistEntryRow(entry_index++, tid, p.id));
     }
 
+    // The browse menu.
+    std::vector<std::vector<uint8_t>> column_rows, menu17_rows, menu18_rows;
+    for (const ColumnDef& c : kMenuColumns) column_rows.push_back(buildColumnRow(c));
+    for (const auto& v : kMenu17) menu17_rows.push_back(buildMenuRow(v));
+    for (const auto& v : kMenu18) menu18_rows.push_back(buildMenuRow(v));
+
     // --- lay out pages (page 0 = file header; tables start at page 1) ---
-    // Emit the full standard table set in rekordbox's order; unpopulated tables
-    // get a single empty data page so their pointers still resolve.
+    // Emit the full standard table set in rekordbox's order. Each table is an
+    // index page, its data pages (none for an empty table), then a blank spare.
     static const std::vector<std::vector<uint8_t>> empty;
     struct Tbl { PageType type; const std::vector<std::vector<uint8_t>>* rows; };
     const std::vector<Tbl> tables = {
@@ -316,9 +414,9 @@ std::vector<uint8_t> buildExportPdb(const ExportModel& model) {
         {PageType::Artwork, &empty},
         {PageType::Unknown14, &empty},
         {PageType::Unknown15, &empty},
-        {PageType::Columns, &empty},
-        {PageType::Unknown17, &empty},
-        {PageType::Unknown18, &empty},
+        {PageType::Columns, &column_rows},
+        {PageType::Unknown17, &menu17_rows},
+        {PageType::Unknown18, &menu18_rows},
         {PageType::History, &empty},
     };
 
@@ -326,24 +424,25 @@ std::vector<uint8_t> buildExportPdb(const ExportModel& model) {
     std::vector<PageSpan> spans;
     uint32_t next_index = 1;
     for (const Tbl& tb : tables) {
-        // Chunk rows into PdbPages (at least one page, even if empty).
         std::vector<PdbPage> chunk;
-        chunk.emplace_back(tb.type);
         for (const auto& row : *tb.rows) {
-            if (!chunk.back().tryAddRow(row)) {
+            if (chunk.empty() || !chunk.back().tryAddRow(row)) {
                 chunk.emplace_back(tb.type);
                 chunk.back().tryAddRow(row);  // a single row always fits an empty page
             }
         }
-        const uint32_t first = next_index;
-        const uint32_t last = next_index + uint32_t(chunk.size()) - 1;
+        const uint32_t index = next_index;
+        std::vector<uint32_t> data;
+        for (std::size_t i = 0; i < chunk.size(); ++i) data.push_back(index + 1 + uint32_t(i));
+        const uint32_t spare = index + 1 + uint32_t(chunk.size());
+        body_pages.push_back(buildIndexPage(index, tb.type, data, spare));
         for (std::size_t i = 0; i < chunk.size(); ++i) {
-            const uint32_t idx = first + uint32_t(i);
-            const uint32_t next = (idx == last) ? 0 : idx + 1;
-            body_pages.push_back(chunk[i].finalize(idx, next));
+            const uint32_t next = i + 1 < chunk.size() ? data[i + 1] : spare;
+            body_pages.push_back(chunk[i].finalize(data[i], next));
         }
-        spans.push_back({first, last});
-        next_index = last + 1;
+        body_pages.emplace_back(kPageSize, 0);  // the empty candidate
+        spans.push_back({spare, index, data.empty() ? index : data.back()});
+        next_index = spare + 1;
     }
 
     const uint32_t total_pages = next_index;  // page 0 header + body pages
@@ -354,12 +453,14 @@ std::vector<uint8_t> buildExportPdb(const ExportModel& model) {
     hdr.putU32LE(kPageSize);               // len_page
     hdr.putU32LE(uint32_t(tables.size())); // num_tables
     hdr.putU32LE(total_pages);             // next_unused_page
-    hdr.putU32LE(0);                       // unknown
+    // Unknown, but 5 in real exports, and an XDJ-RX2 rewrote a 0 here to 5 when
+    // it read the stick. Deep-Symmetry/crate-digger#46 reports it must be 5.
+    hdr.putU32LE(5);
     hdr.putU32LE(1);                       // sequence
     hdr.putU32LE(0);                       // 4-byte gap
     for (std::size_t i = 0; i < tables.size(); ++i) {
         hdr.putU32LE(uint32_t(tables[i].type));
-        hdr.putU32LE(0);                   // empty_candidate (TODO: real spare page)
+        hdr.putU32LE(spans[i].spare);      // empty_candidate
         hdr.putU32LE(spans[i].first);
         hdr.putU32LE(spans[i].last);
     }

@@ -62,6 +62,9 @@ enable_testing()
 add_executable(openboxxx_export_tests tests/tests.cpp)
 target_link_libraries(openboxxx_export_tests PRIVATE openboxxx_export)
 target_include_directories(openboxxx_export_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+# A real rekordbox export, to compare pages against
+target_compile_definitions(openboxxx_export_tests PRIVATE
+  OPENBOXXX_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
 add_test(NAME openboxxx_export_tests COMMAND openboxxx_export_tests)
 
 # --- optional tier-2 ANLZ oracle test (needs python3 + pyrekordbox) ---

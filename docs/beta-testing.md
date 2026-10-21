@@ -375,6 +375,14 @@ Attach if you have them:
 - The **terminal output** (Path B) or a screenshot of the error dialog (Path A)
 - Anything odd about the tracks that failed (unusual characters in tags, very long
   files, variable bit rate, unusual sample rate)
+- **If the player shows nothing:** a zip of the stick's `PIONEER` folder, *after*
+  the player has read it (leave out the music). Players write their own notes there,
+  such as a log in `PIONEER/log/` with the model, firmware and each time it mounted
+  the stick, which shows how far it got. If you have rekordbox, also export the same
+  track or two to a **different** stick with rekordbox and zip that stick's `PIONEER`
+  folder: comparing the two, table by table, is how a missing browse menu was found.
+  These folders list your track titles and file paths, so if you'd rather not post
+  them in a public issue, say so and we'll arrange another way.
 
 Please **don't** attach copyrighted audio, and remember issues are public — crop
 anything personal out of screenshots.
@@ -424,7 +432,7 @@ Please don't file these — they're on the roadmap, tracked in
 | Waveforms (Phase 2) | Waveform display is blank; playback is unaffected |
 | Track artwork | No cover art in the browser |
 | Extended cues (`.EXT` / `PCO2`) | Cue colours and labels don't carry over |
-| Four PDB tables left empty (`columns`, `unknown_17`, `unknown_18`, `history`) | Unknown — a genuine stick populates them, and this is a plausible cause if browsing misbehaves. **Do tell us if browsing is odd.** |
+| PDB `history` table left empty | Unknown — a genuine stick has one row in it. **Do tell us if browsing is odd.** (The browse-menu tables `columns`, `unknown_17` and `unknown_18` are now written: without them an XDJ-RX2 showed none of the tracks.) |
 | Per-crate export in the Mixxx GUI | Menu exports the whole library; use the CLI's `--limit` / `--ids` |
 | OneLibrary (encrypted, newest players) | Not supported yet, so CDJ-3000X / XDJ-AZ / OPUS-QUAD / OMNIS-DUO won't see the library. Now in scope — see [legal.md](legal.md) |
 

@@ -100,11 +100,16 @@ fractional *stereo samples*, beatgrid first-beat is in *frames*, colours are
 | PDB page allocator (`PdbPage`) | ✅ framing validated via `pdb_roundtrip` |
 | PDB tracks + lookups + playlists (`buildExportPdb`) | ✅ round-trips via `pdb_roundtrip` |
 | PDB full 20-table set + colours palette | ✅ emitted; round-trips (colour_id resolves) |
+| PDB laid out like a real export (index pages, spare pages, browse menu, header 0x10) | ✅ tested against `tests/fixtures/rekordcrate-demo`; `history` still empty |
 | `verify` round-trip (native C++) | ⛔ TODO — port the read-back into the lib for in-app use |
 
-The MVP export (all 20 standard tables incl. the 8-colour palette; tracks with
-colour_id, artists/albums/genres/keys; playlists; ANLZ beatgrid + hot/memory
-cues) now round-trips through independent parsers. Remaining before a hardware
+The MVP export (all 20 standard tables incl. the 8-colour palette and the
+browse menu; tracks with colour_id, artists/albums/genres/keys; playlists; ANLZ
+beatgrid + hot/memory cues) now round-trips through independent parsers.
+Passing a parser isn't enough, though: parsers skip tables players need. The
+browse-menu tables were empty until an XDJ-RX2 showed none of the tracks on a
+stick from Sortero, which ports this writer, so `openboxxx_export_tests` now
+compares pages with a real rekordbox export as well. Remaining before a hardware
 test: refine the observed track_row constants / `index_shift` across rekordbox
 versions, and add artwork. ANLZ Phase-2 (cosmetic): `vbr`, `wf_preview`,
 `wf_tiny_preview`.
