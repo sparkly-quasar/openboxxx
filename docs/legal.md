@@ -16,9 +16,11 @@ scope. That has changed, for two reasons:
   the CDJ-3000X, XDJ-AZ, OPUS-QUAD and OMNIS-DUO read OneLibrary, not the older Device Library.
   Leaving OneLibrary out means leaving out current club hardware. rekordbox 7.2.11+ writes both
   formats to every stick.
-- **The passphrase is fixed and already public.** It's the same on every install, isn't tied to a user
-  or licence, and is already distributed in open-source code, including libdjinterop's OneLibrary pull
-  requests (xsco/libdjinterop#196, xsco/libdjinterop#204), which use it as the default.
+- **The passphrase is fixed.** It's the same on every install and isn't tied to a user or licence.
+  It circulates in public tools, but libdjinterop no longer ships it: a maintainer had it removed
+  after informal legal advice that including it could mean the library "can be understood to 'break
+  encryption'", and the merged reading code (xsco/libdjinterop#196) takes the passphrase as a
+  required argument. Treat "it's already public" as a weak argument, not a settled one.
 
 **OneLibrary is now in scope for openboxxx.** For Mixxx itself, shipping it is the Mixxx maintainers'
 decision (and possibly the Mixxx e.V.'s); the proposal (mixxxdj/proposals#20) sets out the options
