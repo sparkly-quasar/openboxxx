@@ -30,6 +30,11 @@ struct MixxxReadOptions {
     bool only_existing_files = true;
     // On-USB parent dir for copied audio; final path is <prefix>/<id>/<filename>.
     std::string contents_prefix = "/Contents";
+    // Export visible crates as playlists, after the real playlists. Crates have
+    // no track order, so tracks are sorted by artist then title.
+    bool include_crates = true;
+    // When non-empty, only crates whose name starts with this are exported.
+    std::string crate_prefix;
 };
 
 // What the read produced -- surfaced to the CLI and (later) the diag bundle.
@@ -39,6 +44,7 @@ struct MixxxReadReport {
     int tracks_with_beatgrid = 0;
     int cues = 0;
     int playlists = 0;
+    int crates = 0;  // crates exported as playlists, on top of `playlists`
     std::vector<std::string> warnings;
 };
 
