@@ -33,8 +33,10 @@ class Checker:
 
 
 def rows(db, type_name):
+    # Match on the enum member's name: the generated parser's PageType is an
+    # IntEnum, and since Python 3.11 str() of one is its number, not its name.
     for t in db.tables:
-        if str(t.type) != type_name:
+        if getattr(t.type, "name", None) != type_name:
             continue
         ref = t.first_page
         last = t.last_page.index
@@ -65,10 +67,10 @@ def main():
     chk.check(db.len_page == 4096, "len_page == 4096")
     chk.check(db.num_tables == 20, "emits the full 20-table standard set")
 
-    colors = list(rows(db, "PageType.colors"))
+    colors = list(rows(db, "colors"))
     chk.check(len(colors) == 8, "colours table has the 8 palette entries")
 
-    tracks = list(rows(db, "PageType.tracks"))
+    tracks = list(rows(db, "tracks"))
     chk.check(len(tracks) > 0, "tracks table has rows")
     for tr in tracks:
         chk.check(bool(text(tr.title)), f"track id={tr.id} has a title")
@@ -78,7 +80,7 @@ def main():
 
     # Playlist entries must reference real track ids.
     track_ids = {tr.id for tr in tracks}
-    entries = list(rows(db, "PageType.playlist_entries"))
+    entries = list(rows(db, "playlist_entries"))
     for e in entries:
         chk.check(e.track_id in track_ids,
                   f"playlist entry references existing track {e.track_id}")
