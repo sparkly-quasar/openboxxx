@@ -94,6 +94,14 @@ std::optional<Rgb> intToRgb(sqlite3_stmt* s, int i) {
                uint8_t(rgb & 0xFF)};
 }
 
+// Older or hand-built libraries may lack a table (crates arrived after
+// playlists), so optional sections check before querying.
+bool hasTable(sqlite3* db, const char* name) {
+    Stmt st(db, "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?");
+    sqlite3_bind_text(st.get(), 1, name, -1, SQLITE_STATIC);
+    return st.step();
+}
+
 std::string usbFileName(const std::string& location) {
     const std::size_t slash = location.find_last_of("/\\");
     return slash == std::string::npos ? location : location.substr(slash + 1);
@@ -296,6 +304,49 @@ ExportModel readMixxxDb(const std::string& db_path,
             model.playlists[pit->second].track_ids.push_back(tid);
         }
         rep.playlists = int(model.playlists.size());
+    }
+
+    // --- crates, as playlists after the real ones ---
+    if (opts.include_crates && hasTable(db, "crates") &&
+        hasTable(db, "crate_tracks")) {
+        // Ids continue past every Mixxx playlist id, hidden ones included, so
+        // a crate can never share an id with a playlist.
+        uint32_t next_id = 1;
+        {
+            Stmt st(db, "SELECT COALESCE(MAX(id), 0) FROM Playlists");
+            if (st.step()) next_id = uint32_t(sqlite3_column_int64(st.get(), 0)) + 1;
+        }
+        std::unordered_map<uint32_t, std::size_t> index_of;  // crate id -> slot
+        {
+            Stmt st(db,
+                    "SELECT id, name FROM crates WHERE show = 1 "
+                    "ORDER BY name COLLATE NOCASE, id");
+            while (st.step()) {
+                std::string name = colText(st.get(), 1);
+                if (name.compare(0, opts.crate_prefix.size(), opts.crate_prefix) != 0)
+                    continue;
+                Playlist pl;
+                pl.id = next_id++;
+                pl.name = std::move(name);
+                index_of[uint32_t(sqlite3_column_int64(st.get(), 0))] =
+                    model.playlists.size();
+                model.playlists.push_back(std::move(pl));
+                ++rep.crates;
+            }
+        }
+        Stmt st(db,
+                "SELECT ct.crate_id, ct.track_id FROM crate_tracks ct "
+                "JOIN library l ON l.id = ct.track_id "
+                "ORDER BY ct.crate_id, l.artist COLLATE NOCASE, "
+                "l.title COLLATE NOCASE, l.id");
+        while (st.step()) {
+            const uint32_t cid = uint32_t(sqlite3_column_int64(st.get(), 0));
+            const uint32_t tid = uint32_t(sqlite3_column_int64(st.get(), 1));
+            auto cit = index_of.find(cid);
+            if (cit == index_of.end()) continue;                   // not exported
+            if (track_ids.find(tid) == track_ids.end()) continue;  // dropped track
+            model.playlists[cit->second].track_ids.push_back(tid);
+        }
     }
 
     sqlite3_close(db);

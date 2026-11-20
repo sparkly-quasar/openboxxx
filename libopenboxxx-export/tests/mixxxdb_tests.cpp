@@ -260,6 +260,110 @@ TEST(reader_clamps_negative_hotcue_and_dedupes_memory) {
     fs::remove(db);
 }
 
+// Crates are how most Mixxx users organise a library, so they export as
+// playlists too: after the real playlists, sorted by name as Mixxx shows them,
+// tracks sorted by artist then title (crates have no order of their own), and
+// with ids past every Mixxx playlist id so the two can never collide.
+namespace {
+bool addCrates(const std::string& path) {
+    sqlite3* db = nullptr;
+    if (sqlite3_open(path.c_str(), &db) != SQLITE_OK) return false;
+    exec(db,
+         "INSERT INTO track_locations VALUES"
+         "(12,'/music/z.flac','z.flac','/music',1,0,0),"
+         "(13,'/music/a.flac','a.flac','/music',1,0,0);");
+    exec(db,
+         "INSERT INTO library(id,artist,title,location,duration,samplerate,"
+         "channels,mixxx_deleted) VALUES"
+         "(3,'Zed','Late',12,5.0,44100,2,0),"
+         "(4,'alpha','Early',13,5.0,44100,2,0);");
+    exec(db,
+         "CREATE TABLE crates(id INTEGER PRIMARY KEY, name TEXT, "
+         "count INTEGER, show INTEGER);");
+    exec(db,
+         "CREATE TABLE crate_tracks(crate_id INTEGER, track_id INTEGER);");
+    exec(db,
+         "INSERT INTO crates VALUES(1,'Bass - Dubstep',0,1),"
+         "(2,'Bass',0,1),(3,'House',0,1),(4,'Techno',0,0);");  // Techno hidden
+    // Crate 1 lists the missing-file track 2, which must not survive.
+    exec(db,
+         "INSERT INTO crate_tracks VALUES(1,3),(1,2),(1,1),(2,4),(3,1),(4,1);");
+    sqlite3_close(db);
+    return true;
+}
+
+const Playlist* findPlaylist(const ExportModel& m, const std::string& name) {
+    for (const Playlist& p : m.playlists)
+        if (p.name == name) return &p;
+    return nullptr;
+}
+}  // namespace
+
+TEST(reader_exports_visible_crates_as_playlists) {
+    namespace fs = std::filesystem;
+    const fs::path db = fs::temp_directory_path() / "openboxxx_crates.sqlite";
+    fs::remove(db);
+    CHECK(buildFixture(db.string()));
+    CHECK(addCrates(db.string()));
+
+    MixxxReadReport rep;
+    ExportModel m = readMixxxDb(db.string(), MixxxReadOptions{}, &rep);
+
+    // "My Set", then the visible crates by name; hidden "Techno" stays out.
+    CHECK(m.playlists.size() == 4);
+    CHECK(rep.playlists == 1);
+    CHECK(rep.crates == 3);
+    if (m.playlists.size() != 4) { fs::remove(db); return; }
+    CHECK(m.playlists[0].name == "My Set");
+    CHECK(m.playlists[1].name == "Bass");
+    CHECK(m.playlists[2].name == "Bass - Dubstep");
+    CHECK(m.playlists[3].name == "House");
+    CHECK(findPlaylist(m, "Techno") == nullptr);
+
+    // Ids past both Mixxx playlists (1 and the hidden AutoDJ 2), and distinct.
+    for (std::size_t i = 1; i < m.playlists.size(); ++i) {
+        CHECK(m.playlists[i].id > 2);
+        CHECK(!m.playlists[i].is_folder);
+        CHECK(m.playlists[i].parent_id == 0);
+        for (std::size_t j = 0; j < i; ++j)
+            CHECK(m.playlists[i].id != m.playlists[j].id);
+    }
+
+    // Artist then title, case-insensitively; the missing track is dropped.
+    const Playlist& dubstep = m.playlists[2];
+    CHECK(dubstep.track_ids.size() == 2 && dubstep.track_ids[0] == 1 &&
+          dubstep.track_ids[1] == 3);
+    CHECK(m.playlists[1].track_ids.size() == 1 &&
+          m.playlists[1].track_ids[0] == 4);
+
+    fs::remove(db);
+}
+
+TEST(reader_crate_prefix_and_opt_out) {
+    namespace fs = std::filesystem;
+    const fs::path db = fs::temp_directory_path() / "openboxxx_crates2.sqlite";
+    fs::remove(db);
+    CHECK(buildFixture(db.string()));
+    CHECK(addCrates(db.string()));
+
+    MixxxReadOptions only_bass;
+    only_bass.crate_prefix = "Bass";
+    ExportModel m = readMixxxDb(db.string(), only_bass);
+    CHECK(m.playlists.size() == 3);
+    CHECK(findPlaylist(m, "House") == nullptr);
+    CHECK(findPlaylist(m, "Bass") != nullptr);
+    CHECK(findPlaylist(m, "Bass - Dubstep") != nullptr);
+
+    MixxxReadOptions none;
+    none.include_crates = false;
+    MixxxReadReport rep;
+    m = readMixxxDb(db.string(), none, &rep);
+    CHECK(m.playlists.size() == 1);
+    CHECK(rep.crates == 0);
+
+    fs::remove(db);
+}
+
 int main() {
     setvbuf(stdout, nullptr, _IONBF, 0);  // flush immediately so a crash is visible
     for (auto& [name, fn] : obxtest::registry()) {

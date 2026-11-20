@@ -6,6 +6,7 @@
 // Usage:
 //   openboxxx_from_mixxx --db PATH [--out DIR] [--copy-audio]
 //                        [--no-intro-outro] [--limit N] [--ids A,B,C]
+//                        [--no-crates] [--crate-prefix P] [--only-listed]
 //
 // Run with --help for the same list at the terminal.
 //
@@ -15,6 +16,9 @@
 //   --no-intro-outro don't map Mixxx Intro/Outro cues as memory cues
 //   --limit N        only export the first N tracks (handy for quick tests)
 //   --ids A,B,C      only export these Mixxx track ids (targeted test sets)
+//   --no-crates      don't export crates as playlists
+//   --crate-prefix P only export crates whose name starts with P
+//   --only-listed    only export tracks in an exported playlist or crate
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -42,6 +46,10 @@ static void usage(std::FILE* out) {
 "  --limit N          export only the first N tracks (handy for a first test)\n"
 "  --ids A,B,C        export only these Mixxx track ids (targeted test sets)\n"
 "  --no-intro-outro   don't map Mixxx Intro/Outro cues as memory cues\n"
+"  --no-crates        don't export crates (they become playlists by default)\n"
+"  --crate-prefix P   only export crates whose name starts with P\n"
+"  --only-listed      only export tracks that are in an exported playlist or\n"
+"                     crate, instead of the whole library\n"
 "  -h, --help         show this help\n"
 "\n"
 "Without --out nothing is written: the library is read and the counts reported.\n"
@@ -66,6 +74,7 @@ int main(int argc, char** argv) {
     bool copy_audio = false;
     MixxxReadOptions opts;
     int limit = 0;
+    bool only_listed = false;
     std::set<uint32_t> only_ids;
 
     for (int i = 1; i < argc; ++i) {
@@ -74,6 +83,9 @@ int main(int argc, char** argv) {
         else if (a == "--out" && i + 1 < argc) out_dir = argv[++i];
         else if (a == "--copy-audio") copy_audio = true;
         else if (a == "--no-intro-outro") opts.include_intro_outro = false;
+        else if (a == "--no-crates") opts.include_crates = false;
+        else if (a == "--crate-prefix" && i + 1 < argc) opts.crate_prefix = argv[++i];
+        else if (a == "--only-listed") only_listed = true;
         else if (a == "--limit" && i + 1 < argc) limit = std::atoi(argv[++i]);
         else if (a == "--ids" && i + 1 < argc) {
             const std::string csv = argv[++i];
@@ -120,6 +132,16 @@ int main(int argc, char** argv) {
         }
     };
 
+    if (only_listed) {
+        std::set<uint32_t> listed;
+        for (const Playlist& pl : model.playlists)
+            listed.insert(pl.track_ids.begin(), pl.track_ids.end());
+        std::vector<Track> picked;
+        for (Track& t : model.tracks)
+            if (listed.count(t.id)) picked.push_back(std::move(t));
+        model.tracks = std::move(picked);
+    }
+
     if (!only_ids.empty()) {
         std::vector<Track> picked;
         for (Track& t : model.tracks)
@@ -139,6 +161,7 @@ int main(int argc, char** argv) {
     std::printf("  with beatgrid   : %d\n", rep.tracks_with_beatgrid);
     std::printf("  cues mapped     : %d\n", rep.cues);
     std::printf("  playlists       : %d\n", rep.playlists);
+    std::printf("  crates          : %d (exported as playlists)\n", rep.crates);
     for (const std::string& w : rep.warnings)
         std::printf("  warning: %s\n", w.c_str());
 
